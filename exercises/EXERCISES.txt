@@ -1,0 +1,21 @@
+///////////////////////////////////////////////////////////////////////////////
+// 6502 Instruction Set: Warm-up Exercises
+///////////////////////////////////////////////////////////////////////////////
+
+ The following exercises are designed to introduce you to the most common 6502 instructions
+ that we’ll use in the beginning of our course.
+ I am aware that these exercises will sound a bit pointless, and it might seem like we are simply
+ moving values around the machine. But don’t worry; very soon we’ll put all these instructions
+ together and create something more meaningful, like asking the PPU to paint pixels on the
+ screen or keeping the score of a player or the number of enemies in our game.
+ For now, all I want is for you to get familiarized with the basic instructions of the 6502 CPU.
+ These exercises will cover things like different addressing modes, loading values into registers,
+ storing values in memory, checking processor flags, and creating loops.
+ Don’t forget that you must always include the iNES header in all exercises if you want to run and
+ debug them with an emulator. You must also always add the three vectors for NMI, Reset, and
+ IRQ handlers at the end of the PRG-ROM at address $FFFA.
+
+// Assembling .nes files:
+ $ ca65 <code>.asm -o <code>.o
+ $ ld65 -C nes.cfg <code>.o -o <code>.nes
+ $ fceux <code>.nes

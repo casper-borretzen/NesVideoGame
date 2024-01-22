@@ -1,90 +1,103 @@
+///////////////////////////////////////////////////////////////////////////////
+// GIT VERSION HISTORY:
+///////////////////////////////////////////////////////////////////////////////
+ - 00000001:
+     - Course section completed: 01 - Introduction
+     - Course section completed: 02 - History & Early Years
+     - Course section completed: 03 - NES Hardware
+     - Course section completed: 04 - Binary & Hexadecimal
+     - Course section completed: 05 - The 6502 Processor
+     - Course section completed: 06 - 6502 Assembler
+     - Course section completed: 07 - Intro to 6502 Assembly
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// NINTENDO ENTERTAINMENT SYSTEM (NES) SPECIFICATIONS:
+///////////////////////////////////////////////////////////////////////////////
+ - CPU (NTSC)      : Ricoh 2A03 8-bit processor (6502 core) @ 1.79MHz
+ - CPU (PAL)       : Ricoh 2A07 8-bit processor (6502 core) @ 1.66MHz
+ - Internal memory : 2KB WRAM + 2KB VRAM + 256 Bytes SPR-RAM
+ - Graphics        : Ricoh 2C02 PPU (256x240 pixels)
+
+
+
 ###############################################################################
 #                            Ricoh 2A03 CPU (6502)                            #
 ###############################################################################
 
-
-///////////////////////////////////////////////////////////////////////////////
-// 6502 CPU Pinout
-///////////////////////////////////////////////////////////////////////////////
-
-               ----------------
-     GND-----<|1             40|>-----RES(INV)
-     RDY-----<|2             39|>-----φ2(OUT)
- φ1(OUT)-----<|3             38|>-----SO
-IRQ(INV)-----<|4             37|>-----φ0(IN)
-      NC-----<|5             36|>-----NC
-NMI(INV)-----<|6      R      35|>-----NC
-    SYNC-----<|7      I      34|>-----R/W(INV)
-     VCC-----<|8      C      33|>-----D0
-      A0-----<|9      O      32|>-----D1
-      A1-----<|10     H      31|>-----D2
-      A2-----<|11            30|>-----D3
-      A3-----<|12     2      29|>-----D4
-      A4-----<|13     A      28|>-----D5
-      A5-----<|14     0      27|>-----D6
-      A6-----<|15     3      26|>-----D7
-      A7-----<|16            25|>-----A15
-      A8-----<|17            24|>-----A14
-      A9-----<|18            23|>-----A13
-     A10-----<|19            22|>-----A12
-     A11-----<|20            21|>-----VSS
-               ----------------
+                               6502 CPU PINOUT
+                               ----------------
+                     GND-----<|1             40|>-----RES(INV)
+                     RDY-----<|2             39|>-----φ2(OUT)
+                 φ1(OUT)-----<|3             38|>-----SO
+                IRQ(INV)-----<|4             37|>-----φ0(IN)
+                      NC-----<|5             36|>-----NC
+                NMI(INV)-----<|6      R      35|>-----NC
+                    SYNC-----<|7      I      34|>-----R/W(INV)
+                     VCC-----<|8      C      33|>-----D0
+                      A0-----<|9      O      32|>-----D1
+                      A1-----<|10     H      31|>-----D2
+                      A2-----<|11            30|>-----D3
+                      A3-----<|12     2      29|>-----D4
+                      A4-----<|13     A      28|>-----D5
+                      A5-----<|14     0      27|>-----D6
+                      A6-----<|15     3      26|>-----D7
+                      A7-----<|16            25|>-----A15
+                      A8-----<|17            24|>-----A14
+                      A9-----<|18            23|>-----A13
+                     A10-----<|19            22|>-----A12
+                     A11-----<|20            21|>-----VSS
+                               ----------------
 
 
 
-
-
-///////////////////////////////////////////////////////////////////////////////
-// 6502 CPU Registers:
-///////////////////////////////////////////////////////////////////////////////
-
-############################## [8-BIT DATA BUS] ##############################
-|    |            |       |            |                                     |
-|    |            |       |            |                                     |
-|  ------------------------------------------------------------------------  |
-|    |            |       |            |                                     |
-|  [Y(8)]-------[X(8)]  [A(8)]         |                                     |
-|  (INDEXED REGISTERS)  (ACCUMULATOR)  |                                     |
-I    |                   |  |  |       |                                     M
-N    |                   |  |  |       |                                     E
-/  [SP(8)]               |  |   \     /                                      M
-O  (STACK POINTER)       |  |     \ /                                        O
-U    |                   |  |    [ALU]--------------------[P]                R
-T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)  Y
-|  [PC(16)]              |  |______|                       N V - B D I Z C   |
-|  (PROGRAM COUNTER)     |                                                   |
-|    |                   |                                                   |
-|  ------------------------------------------------------------------------  |
-|    |                   |                                                   |
-|    |                   |                                                   |
-########################### [16-BIT ADDRESS BUS] #############################
-
-
+                              6502 CPU REGISTERS
+############################## [8-BIT DATA BUS] ###############################
+|    |            |       |            |                                      |
+|    |            |       |            |                                      |
+|  -------------------------------------------------------------------------  |
+|    |            |       |            |                                      |
+|  [Y(8)]-------[X(8)]  [A(8)]         |                                      |
+|  (INDEXED REGISTERS)  (ACCUMULATOR)  |                                      |
+I    |                   |  |  |       |                                      M
+N    |                   |  |  |       |                                      E
+/  [SP(8)]               |  |   \     /                                       M
+O  (STACK POINTER)       |  |     \ /                                         O
+U    |                   |  |    [ALU]--------------------[P]                 R
+T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
+|  [PC(16)]              |  |______|                       N V - B D I Z C    |
+|  (PROGRAM COUNTER)     |                                                    |
+|    |                   |                                                    |
+|  -------------------------------------------------------------------------  |
+|    |                   |                                                    |
+|    |                   |                                                    |
+########################### [16-BIT ADDRESS BUS] ##############################
 
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// 6502 Processor Status Flags Register:
+// 6502 PROCESSOR STATUS FLAGS REGISTER:
 ///////////////////////////////////////////////////////////////////////////////
 
-              P  <--- Byte
-7 6 5 4 3 2 1 0  <--- Bit
-N V - B D I Z C  <--- Flag
-| |   | | | | |
-| |   | | | | |
-| |   | | | | |___ Carry Flag              0 = False            1 = True
-| |   | | | |
-| |   | | | |____ Zero flag                0 = Result not zero  1 = Result zero
-| |   | | |
-| |   | | |_____ IRQ Disabled flag         0 = Enable           1 = Disable
-| |   | |
-| |   | |______ Decimal mode (BCD) flag    0 = False            1 = True
-| |   |
-| |   |_______ Break flag                  0 = No break         1 = Break
-| |
-| |_________ Overflow flag                 0 = False            1 = True
-|
-|__________ Negative flag                  0 = Positive         1 = Negative
+               P  <--- Byte
+ 7 6 5 4 3 2 1 0  <--- Bit
+ N V - B D I Z C  <--- Flag
+ | |   | | | | |
+ | |   | | | | |
+ | |   | | | | |___ Carry Flag             0 = False            1 = True
+ | |   | | | |
+ | |   | | | |____ Zero flag               0 = Result not zero  1 = Result zero
+ | |   | | |
+ | |   | | |_____ IRQ Disabled flag        0 = Enable           1 = Disable
+ | |   | |
+ | |   | |______ Decimal mode (BCD) flag   0 = False            1 = True
+ | |   |
+ | |   |_______ Break flag                 0 = No break         1 = Break
+ | |
+ | |_________ Overflow flag                0 = False            1 = True
+ |
+ |__________ Negative flag                 0 = Positive         1 = Negative
 
 
 // Carry flag:
@@ -96,20 +109,20 @@ N V - B D I Z C  <--- Flag
        \ __ CARRY FLAG
 
 // Negative numbers using two's complement:
--128's  64's  32's  16's   8's   4's   2's   1's
-   |     |     |     |     |     |     |     |
-   |     |     |     |     |     |     |     |
-   -     -     -     -     -     -     -     -
-   0     1     1     1     1     1     1     1  =  [7F]  =  127 
-   -     -     -     -     -     -     -     -
-   |     |     |     |     |     |     |     |
-   -     -     -     -     -     -     -     -
-   1     0     0     0     0     0     0     0  =  [80]  =  -128
-   -     -     -     -     -     -     -     -
-   |     |     |     |     |     |     |     |
-   -     -     -     -     -     -     -     -
-   1     1     1     1     1     1     1     1  =  [FF]  =  -1
-   -     -     -     -     -     -     -     -
+ -128's  64's  32's  16's   8's   4's   2's   1's
+    |     |     |     |     |     |     |     |
+    |     |     |     |     |     |     |     |
+    -     -     -     -     -     -     -     -
+    0     1     1     1     1     1     1     1  =  [7F]  =  127 
+    -     -     -     -     -     -     -     -
+    |     |     |     |     |     |     |     |
+    -     -     -     -     -     -     -     -
+    1     0     0     0     0     0     0     0  =  [80]  =  -128
+    -     -     -     -     -     -     -     -
+    |     |     |     |     |     |     |     |
+    -     -     -     -     -     -     -     -
+    1     1     1     1     1     1     1     1  =  [FF]  =  -1
+    -     -     -     -     -     -     -     -
 
 // Overflow flag (overflow to negative):
    0 1 1 1 1 1 1 1  =  [7F]  =  127
@@ -118,3 +131,164 @@ N V - B D I Z C  <--- Flag
  = 1 0 0 0 0 0 0 0  =  [80]  =  -128
     \
       \ __ SIGN BIT
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// 6502 ASSEMBLER:
+///////////////////////////////////////////////////////////////////////////////
+
+
+   LDA #2 -> ASSEMBLER -> (A9 02) 1010 1001 0000 0010
+     \                        \       \
+      Assembly code            Hex     * Machine code
+   
+   * Machine code is the raw binary values fed to the processor to perform a
+   certain operation.
+ 
+ - Examples of assembly to hex:
+   LDA = Load decimal value to A (accumulator)
+   STA = Store value from A to memory address
+   LDX = Load the X register with value from memory
+   DEX = Decrement X
+   
+   LDA #2    = A9 02
+   STA $2B   = 85 2B
+   LDX $1234 = AE 34 12
+   DEX       = CA    \
+                      * 12 has swapped places with 34
+   
+   * NES has a Little Endian architecture
+
+ - Installing the ca65 assembler and the FCEUX NES emulator on Arch Linux:
+     $ yay -S cc65
+     $ sudo pacman -S fceux
+
+ - Assembling .nes file:
+     $ ca65 <name>.asm -o <name>.o
+     $ ld65 -C nes.cfg <name>.o -o <name>.nes
+
+ - Running .nes file:
+     $ fceux <name>.nes
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// 6502 INSTRUCTIONS (OPCODES):
+///////////////////////////////////////////////////////////////////////////////
+
+ - List of 6502 instructions:       http://www.6502.org/tutorials/6502opcodes.html
+ - List of 6502 instructions (alt): http://www.6502.org/users/obelisk/6502/instructions.html
+
+ - Load and store instructions:
+     LDA  ; load the A register
+     LDX  ; load the X register
+     LDY  ; load the Y register
+ 
+     STA  ; store the A register
+     STX  ; store the X register
+     STY  ; store the Y register
+ 
+ - Loading / storing modes:
+     Immediate mode:               LDA #80    ; Loads the A register with the literal decimal value 80
+     Absolute (zero-page) mode:    LDA $80    ; Loads the A register with the value inside memore address $80
+     Immediate mode:               LDA #$80   ; Loads the A register with the literal hexadecimal number $80
+     Absolute (zero-page) indexed: STA $80,X  ; Store the value of A into memory address ($80 + X)
+
+- Arithmetic instructions (addition, subtract):
+     ADC  ; add to the accumulator (with carry)
+     SBC  ; subtract from the accumulator (with carry)
+ 
+     CLC  ; clear the carry flag (usually performed before addition)
+     SEC  ; sets the carry flag (usually performed before subtraction)
+ 
+ - Increment and Decrement instructions:
+     INC  ; increment memory by one
+     INX  ; increment X by one
+     INY  ; increment Y by one
+ 
+     DEC  ; decrement memory by one
+     DEX  ; decrement X by one
+     DEY  ; decrement Y by one
+
+     ; Z=1 if the result is zero, 0 otherwise
+     ; N=1 if bit 7(sign bit) is 1, 0 otherwise
+     ; The accumulator has no increment instruction.
+
+ - Logical Instructions:
+     JMP  ; jump to another location     GOTO
+
+     BCC  ; branch on carry clear        C == 0
+     BCS  ; branch on carry set          C == 1
+     BEQ  ; branch on equal to zero      Z == 1
+     BNE  ; branch on not equal to zero  Z == 0
+     BMI  ; branch on minus              N == 1
+     BPL  ; branch on plus               N == 0
+     BVC  ; branch on overflow clear     V == 0
+     BVS  ; branch on overflow set       V == 1
+
+ - Jump, Branch, Compare Instructions:
+     ? 
+
+ - Shift and Rotate Instructions:
+     ?
+
+ - Transfer Instructions:
+     TAX  ; transfer A to X
+     TAY  ; transfer A to Y
+     TXA  ; transfer X to A
+     TYA  ; transfer Y to A
+
+ - Stack Instructions:
+     ?
+
+ - Subroutine Instructions:
+     ?
+
+ - Set/Reset Instructions:
+     ?
+
+ - NOP/BRK Instructions:
+     ?
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// CPU MEMORY MAP
+///////////////////////////////////////////////////////////////////////////////
+
+ $0000           $2000           $4020                                   $FFFF
+ |               |               |                                       |
+ #      RAM      #   PPU & APU   #              CARTRIDGE SPACE          #
+  ----------------------------------------------------------------------- 
+ | Z |     |     |           |   |               |                   |   | 
+ | E |  S  |     |           |   |               |                   | V |
+ | R |  Y  |     |           |   |               |                   | E |
+ | O |  S  |     |     P     | A |    PRG-RAM    |                   | C |
+ |   |  T  |     |     P     | P |    BAT SAVE   |      PRG-ROM      | T |
+ | P |  E  |     |     U     | U |    MAPPER     |                   | O |
+ | A |  M  |     |           |   |               |                   | R |
+ | G |     |     |           |   |               |                   | S |
+ | E |     |     |           |   |               |                   |   |
+  -----------------------------------------------------------------------
+     #     #                 #                   #                   #
+     |     |                 |                   |                   |
+     $00FF $0800             $4000               $8000               $FFFA
+
+ - Memory mapped I/O
+ - 16-bit address space = 2 to the power of 16 = 65.536 (64KB)
+ - Discrete Logic Chip figures out the location of the address (RAM/PPU/etc.)
+   when you are sending instructions to the CPU.
+ - System RAM: $0000 - $0800 (2KB internal RAM)
+     - Page zero: $0000 - $00FF
+     - Some parts of the 2KB of internal ram at $0000 - $07FF have
+       predefined purposes by the 6502 architecture.
+     - The stack always uses some part of the $0100 - $01FF page.
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// OTHER NOTES
+///////////////////////////////////////////////////////////////////////////////
+
+ - iNES header: https://www.nesdev.org/wiki/INES
