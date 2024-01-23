@@ -1,6 +1,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00000010:
+     - Course section 08: NES Graphics
+        - Rendering background color (helloppu)
+        - Added code for initializing the NES to a stable state
  - 00000001:
      - Course section completed: 01 - Introduction
      - Course section completed: 02 - History & Early Years
@@ -11,7 +15,6 @@
      - Course section completed: 07 - Intro to 6502 Assembly
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // NINTENDO ENTERTAINMENT SYSTEM (NES) SPECIFICATIONS:
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,7 +22,6 @@
  - CPU (PAL)       : Ricoh 2A07 8-bit processor (6502 core) @ 1.66MHz
  - Internal memory : 2KB WRAM + 2KB VRAM + 256 Bytes SPR-RAM
  - Graphics        : Ricoh 2C02 PPU (256x240 pixels)
-
 
 
 ###############################################################################
@@ -51,7 +53,6 @@
                                ----------------
 
 
-
                               6502 CPU REGISTERS
 ############################## [8-BIT DATA BUS] ###############################
 |    |            |       |            |                                      |
@@ -75,7 +76,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 ########################### [16-BIT ADDRESS BUS] ##############################
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 PROCESSOR STATUS FLAGS REGISTER:
 ///////////////////////////////////////////////////////////////////////////////
@@ -92,13 +92,14 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  | |   | | |_____ IRQ Disabled flag        0 = Enable           1 = Disable
  | |   | |
  | |   | |______ Decimal mode (BCD) flag   0 = False            1 = True
- | |   |
- | |   |_______ Break flag                 0 = No break         1 = Break
- | |
- | |_________ Overflow flag                0 = False            1 = True
- |
- |__________ Negative flag                 0 = Positive         1 = Negative
-
+ | |   |                        |  
+ | |   |_______ Break flag      |          0 = No break         1 = Break
+ | |                            |
+ | |_________ Overflow flag     |          0 = False            1 = True
+ |                              |
+ |__________ Negative flag      |          0 = Positive         1 = Negative
+                                |
+                               NOTE: The BCD flag is disabled on the NES CPU
 
 // Carry flag:
    [0] 1 1 1 1 1 1 1 1  =  [FF]
@@ -133,18 +134,50 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
       \ __ SIGN BIT
 
 
+///////////////////////////////////////////////////////////////////////////////
+// CPU MEMORY MAP
+///////////////////////////////////////////////////////////////////////////////
+
+ $0000           $2000           $4020                                   $FFFF
+ |               |               |                                       |
+ #      RAM      #   PPU & APU   #              CARTRIDGE SPACE          #
+  ----------------------------------------------------------------------- 
+ | Z |     |     |           |   |               |                   |   | 
+ | E |  S  |     |           |   |               |                   | V |
+ | R |  Y  |     |           |   |               |                   | E |
+ | O |  S  |     |     P     | A |    PRG-RAM    |                   | C |
+ |   |  T  |     |     P     | P |    BAT SAVE   |      PRG-ROM      | T |
+ | P |  E  |     |     U     | U |    MAPPER     |                   | O |
+ | A |  M  |     |           |   |               |                   | R |
+ | G |     |     |           |   |               |                   | S |
+ | E |     |     |           |   |               |                   |   |
+  -----------------------------------------------------------------------
+     #     #                 #                   #                   #
+     |     |                 |                   |                   |
+     $00FF $0800             $4000               $8000               $FFFA
+
+ - Memory mapped I/O
+ - 16-bit address space = 2 to the power of 16 = 65.536 (64KB)
+ - Discrete Logic Chip figures out the location of the address (RAM/PPU/etc.)
+   when you are sending instructions to the CPU.
+ - System RAM: $0000 - $0800 (2KB internal RAM)
+     - Page zero: $0000 - $00FF
+     - Some parts of the 2KB of internal ram at $0000 - $07FF have
+       predefined purposes by the 6502 architecture.
+     - The stack always uses some part of the $0100 - $01FF page.
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 ASSEMBLER:
 ///////////////////////////////////////////////////////////////////////////////
 
-
-   LDA #2 -> ASSEMBLER -> (A9 02) 1010 1001 0000 0010
-     \                        \       \
-      Assembly code            Hex     * Machine code
+ - The assembler turns assembly code into machine code:
+     LDA #2 -> ASSEMBLER -> (A9 02) 1010 1001 0000 0010
+       \                        \       \
+        Assembly code            Hex     * Machine code
    
    * Machine code is the raw binary values fed to the processor to perform a
-   certain operation.
+     certain operation.
  
  - Examples of assembly to hex:
    LDA = Load decimal value to A (accumulator)
@@ -152,11 +185,12 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    LDX = Load the X register with value from memory
    DEX = Decrement X
    
-   LDA #2    = A9 02
-   STA $2B   = 85 2B
-   LDX $1234 = AE 34 12
-   DEX       = CA    \
-                      * 12 has swapped places with 34
+   Assembly:     Hex:
+   LDA #2     =  A9 02
+   STA $2B    =  85 2B
+   LDX $1234  =  AE 34 12
+   DEX        =  CA    \
+                        * 12 has swapped places with 34
    
    * NES has a Little Endian architecture
 
@@ -172,19 +206,24 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      $ fceux <name>.nes
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 INSTRUCTIONS (OPCODES):
 ///////////////////////////////////////////////////////////////////////////////
 
- - List of 6502 instructions:       http://www.6502.org/tutorials/6502opcodes.html
- - List of 6502 instructions (alt): http://www.6502.org/users/obelisk/6502/instructions.html
+ - List of 6502 instructions:      
+     http://www.6502.org/tutorials/6502opcodes.html
+
+ - List of 6502 instructions (alt link):
+     http://www.6502.org/users/obelisk/6502/instructions.html
+
+ - It is customary to add a CLD (clear decimal mode flag) instruction at the
+   beginning of the code since the NES does not support the decimal flag.
 
  - Load and store instructions:
      LDA  ; load the A register
      LDX  ; load the X register
      LDY  ; load the Y register
- 
+
      STA  ; store the A register
      STX  ; store the X register
      STY  ; store the Y register
@@ -198,7 +237,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 - Arithmetic instructions (addition, subtract):
      ADC  ; add to the accumulator (with carry)
      SBC  ; subtract from the accumulator (with carry)
- 
+
      CLC  ; clear the carry flag (usually performed before addition)
      SEC  ; sets the carry flag (usually performed before subtraction)
  
@@ -252,43 +291,184 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ?
 
 
+###############################################################################
+#                                NES GRAPHICS                                 #
+###############################################################################
+
+                                 [TV SCREEN]
+                               256 x 240 PIXELS
+                            (NTSC 60Hz / PAL 50Hz)
+                     -----------------------------------   <-
+                    |                                   |    | 
+                    |           ,___          .-;'      |    |
+                    |           `"-.`\_...._/`.`        |    |
+                    |        ,      \        /          |    |
+                    |     .-' ',    / ()   ()\          | H  |
+                    |    `'._   \  /()    .  (|         | B  |
+                    |        > .' ;,     -'-  /         | L  |
+                    |       / <   |;,     __.;          | A  |-- 240 VISIBLE
+                    |       '-.'-.|  , \    , \         | N  |    SCANLINES
+                    |          `>.|;, \_)    \_)        | K  |
+                    |           `-;     ,    /          |    |
+                    |              \    /   <           |    |
+                    |               '. <`'-,_)          |    |
+                    |                '._)               |    |
+                    |                                   |    |
+                     -----------------------------------   <-
+                    |                                   |    |
+                    |               VBLANK              |    |-- 21 SCANLINES
+                    |                                   |    |   OF  VERTICAL
+                     ----------------------------------    <-       BLANK
+                    |---------341 PPU CYCLES/PIXELS----------|
+                    |----256 VISIBLE SCANLINE PIXELS----|
 
 ///////////////////////////////////////////////////////////////////////////////
-// CPU MEMORY MAP
+
+ - Vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
+   but more pattern tables can be added if the cartridge has a mapper.
+ - Pattern table can be thought of as different brushes 
+   while the name table is the canvas in which we paint the final result.
+ - The color palette contains colors for 16 colors for painting background
+   and 16 colors for painting the sprites. The 16 colors are in 4 sets of 4
+   [1 2 3 4] [5 6 7 8] [9 10 11 12] [13 14 15 16] and the first color in every
+   set (both in background and sprite) is the same in every set and is
+   the main background color.
+ - Each NTSC frame has a total of 262 scanlines.
+   (240 visible scanlines + 21 scanlines of Vertical Blank)
+ - VRAM has to be updated during the period of VBLANK
+ - The PPU triggers an NMI interrupt to the CPU every time a new VBLANK starts.
+ - HBLANK is the timie it takes from the beam to go from right to left again
+   after each scanline. The PPU handles this for us.
+ - Each scanline lasts 341 PPU clock-cycles. This is the same as
+   113.6 CPU clock cycles. 1 CPU cycle = 3 PPU cycle.
+ - For an NTSC frame: 240 scanlines are visible, 1 scanline is pre-VBLANK,
+   and the remaining 21 scanlines are VBLANK.
+
 ///////////////////////////////////////////////////////////////////////////////
 
- $0000           $2000           $4020                                   $FFFF
- |               |               |                                       |
- #      RAM      #   PPU & APU   #              CARTRIDGE SPACE          #
-  ----------------------------------------------------------------------- 
- | Z |     |     |           |   |               |                   |   | 
- | E |  S  |     |           |   |               |                   | V |
- | R |  Y  |     |           |   |               |                   | E |
- | O |  S  |     |     P     | A |    PRG-RAM    |                   | C |
- |   |  T  |     |     P     | P |    BAT SAVE   |      PRG-ROM      | T |
- | P |  E  |     |     U     | U |    MAPPER     |                   | O |
- | A |  M  |     |           |   |               |                   | R |
- | G |     |     |           |   |               |                   | S |
- | E |     |     |           |   |               |                   |   |
-  -----------------------------------------------------------------------
-     #     #                 #                   #                   #
-     |     |                 |                   |                   |
-     $00FF $0800             $4000               $8000               $FFFA
-
- - Memory mapped I/O
- - 16-bit address space = 2 to the power of 16 = 65.536 (64KB)
- - Discrete Logic Chip figures out the location of the address (RAM/PPU/etc.)
-   when you are sending instructions to the CPU.
- - System RAM: $0000 - $0800 (2KB internal RAM)
-     - Page zero: $0000 - $00FF
-     - Some parts of the 2KB of internal ram at $0000 - $07FF have
-       predefined purposes by the 6502 architecture.
-     - The stack always uses some part of the $0100 - $01FF page.
+                                COLOR PALETTE
+                                -------------
+                                (16)BACKGROUND
+                                (16)SPRITES
+                                -------------
+  PATTERN TABLE 0                     |                        NAME TABLE 0
+  PATTERN TABLE 1                     |                        NAME TABLE 1
+        |                             |                             |
+     CHR-ROM <--------------------> [PPU] <--------------------> 2KB VRAM
+   (CARTRIDGE)             (PICTURE PROCESSING UNIT)            (VIDEO RAM)
+                                      |
+                                      |
+                                PPU REGISTERS
+                              -----------------
+                              $2000:   PPU_CTRL
+                              $2001:   PPU_MASK
+                              $2002: PPU_STATUS
+                              $2003:   OAM_ADDR
+                              $2004:   OAM_DATA
+                              $2005: PPU_SCROLL
+                              $2006:   PPU_ADDR
+                              $2007:   PPU_DATA
+                              -----------------
 
 
+///////////////////////////////////////////////////////////////////////////////
+// PPU REGISTERS:
+///////////////////////////////////////////////////////////////////////////////
 
+   $2000 : PPU_CTRL   :  7 6 5 4 3 2 1 0
+                         | | | | | |  \ \ 
+                         | | | | | |   Base name table address
+                         | | | | | |   00: $2000  ;  01: $2400
+                         | | | | | |   10: $2800  ;  11: $2C00
+                         | | | | |  \
+                         | | | | |   Sprite pattern table address
+                         | | | | |   0: $0000     ;      1: $1000
+                         | | | |  \
+                         | | | |   Sprite pattern table no. (0;1)
+                         | | |  \
+                         | | |   Background pattern table no. (0;1)
+                         | |  \
+                         | |   Sprite size
+                         | |  0:8x8; 1:16x16
+                         |  \
+                         |   PPU master/slave select (0;1)
+                          \
+                           Generate NMI at the start of VBLANK? (0;1)
+
+   $2001 : PPU_MASK   :  7 6 5 4 3 2 1 0
+                         | | | | | | |  \ 
+                         | | | | | | |   Grayscale
+                         | | | | | |  \
+                         | | | | | |   Show background in leftmost 8 pixels?
+                         | | | | |  \ 
+                         | | | | |   Show sprites in leftmost 8 pixels?
+                         | | | |  \ 
+                         | | | |   Show background?
+                         | | |  \ 
+                         | | |   Show sprites?
+                         | |  \ 
+                         | |   Emphasize red?
+                         |  \ 
+                         |   Emphasize green?
+                          \ 
+                           Emphasize blue?
+
+   $2002 : PPU_STATUS :  7 6 5 4 3 2 1 0
+                         | | |  \ \ \ \ \
+                         | | |   PPU open bus
+                         | |  \
+                         | |   Sprite overflow?
+                         | |   (more than 8 sprites in one scanline)
+                         |  \
+                         |   Sprite-0 Hit?
+                          \
+                           In VBlank? (0:Not in VBLANK; 1:In VBLANK)
+
+   $2003 : OAM_ADDR   : Define address of sprite OAM here (usually $00)
+   $2004 : OAM_DATA   : Write OAM data here (usually not used directly)
+   $2005 : PPU_SCROLL : Used to write the scroll position 
+                        (Indicates which pixel of the nametable
+                        is at the top-left corner)
+   $2006 : PPU_ADDR   : Write the hi-byte & lo-byte of the PPU address
+                        (latch register)
+   $2007 : PPU_DATA   : Write the data to be sent to the address
+                        defined at $2006
+
+
+//////////////////////////////////////////////////////////////////////////////
+// PPU memory map
+//////////////////////////////////////////////////////////////////////////////
+
+                $0000 ---#-----------------#
+                         | PATTERN TABLE 0 | CHR-ROM TILES
+                $1000 ---#-----------------#
+                         | PATTERN TABLE 1 | CHR-ROM TILES
+                $2000 ---#-----------------#
+                         |  NAME TABLE 0   | 1KB
+                         |  + ATTRIBUTES   |
+                $2400 ---#-----------------#
+                         |  NAME TABLE 1   | 1KB
+                         |  + ATTRIBUTES   |
+                $2800 ---#-----------------#
+                         |  NAME TABLE 2   | 1KB
+                         |  + ATTRIBUTES   |
+                $2C00 ---#-----------------#
+                         |  NAME TABLE 3   | 1KB
+                         |  + ATTRIBUTES   |
+                $3000 ---#-----------------#
+                         |     MIRRORS     |
+                         |   $2000-$2EFF   |
+                $3F00 ---#-----------------#
+                         |   PALETTE BG    | 16 bytes
+                         | PALETTE SPRITES | 16 bytes
+                         #-----------------#
+              
+              
 ///////////////////////////////////////////////////////////////////////////////
 // OTHER NOTES
 ///////////////////////////////////////////////////////////////////////////////
 
  - iNES header: https://www.nesdev.org/wiki/INES
+ - Init code:   https://www.nesdev.org/wiki/Init_code
+ - PPU registers: https://www.nesdev.org/wiki/PPU_registers
+
