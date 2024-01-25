@@ -1,6 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00000100:
+     - Course section 09: Background Graphics
+        - Loading of CHR background tiles for the first nametable
+        - Loading of attributes for the first nametable
+        - Created dynamic macros for PPU_SETADDR and PPU_SETDATA
+        - Added frame counter and seconds counter as variables in the zero page
+        - Frame counter increments on every vblank and seconds counter
+          increments when frame counter reaches 60
+        - Added pointer BgPtr for BackgroundData
+        - Made subroutine for looping through and loading all tiles and
+          attributes to the first nametable
+        - Made subroutine for drawing text (in drawtext.asm)
  - 00000011:
      - Course section 08: NES Graphics
         - Divided the code into multiple include (.inc) files
@@ -282,6 +294,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      BVC  ; branch on overflow clear     V == 0
      BVS  ; branch on overflow set       V == 1
      
+     CMP  ; compare accumulator
      CPX  ; compare X register
      CPY  ; compare Y register
 
@@ -316,7 +329,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      SEI  ; set interrupt disable flag
      RTI  ; return from interrupt
 
-     ; It is customary to add a CLD (clear decimal mode flag) instruction at the
+     ; It is customary to add a CLD (clear decimal mode flag) instruction
      ; during initialization since the NES does not support the decimal flag.
 
  - NOP/BRK Instructions:
@@ -506,6 +519,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // LINKS / RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - Tile Editors:
+    - NEXXT: https://frankengraphics.itch.io/nexxt
+
  - NESdev Wiki:
     - iNES header:   https://www.nesdev.org/wiki/INES
     - Init code:     https://www.nesdev.org/wiki/Init_code
@@ -531,3 +547,24 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Unnamed labels can be created with : and referenced with :- (previous) or :+ (next)
  - Roll-off: When decrementing $00 -> $FF
  - Roll-off: When incrementing $FF -> $00
+ - VRAM has 2048 bytes of storage capacity that is divided into 1024 bytes
+   assigned for each of the two nametables. Each nametable needs to store 
+   tiles and color data. Tiles are stored in the 32x30 tile grid and colors 
+   are stored in the 8x8 attribute grid. Each entry in both the tile grid and
+   the attribute grid needs 1 byte of storage space.
+   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
+ - Pointers are a 16-bit address stored as lo-byte, followed by hi-byte.
+   And are referenced by using parentheses.
+   Ptr: .res 2 ; Reserving 2 bytes (16 bits) for the pointer Ptr during variable declaration
+   lda #<Adr   ; Loading the lo-byte of the address Adr into A
+   sta Ptr     ; Storing the lo-byte to the pointer Ptr
+   lda #>Adr   ; Loading the hi-byte of the address Adr into A
+   sta Ptr+1   ; Storing the hi-byte to the pointer Ptr
+   (Ptr)       ; Referencing the pointer Ptr
+   (Ptr),y     ; Referencing the pointer Ptr with a offset Y (only the register Y can be used to offset a pointer)
+
+
+
+
+
+
