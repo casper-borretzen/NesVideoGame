@@ -1,6 +1,15 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00000101:
+     - Course section 10: Sprites
+        - Added test sprite data(SpriteData), a subroutine for storing sprite 
+          data in RAM (LoadSprites) and instructions to update PPU OAM from RAM
+          every frame (on MNI (VBLANK)).
+        - Added hiding of unused sprites in OAM data initialization
+        - Implemented loading of background data and attributes from .nam file
+        - Added another test sprites. Now displaying two static test sprites.
+        (Completed section)
  - 00000100:
      - Course section 09: Background Graphics
         - Loading of CHR background tiles for the first nametable
@@ -13,6 +22,7 @@
         - Made subroutine for looping through and loading all tiles and
           attributes to the first nametable
         - Made subroutine for drawing text (in drawtext.asm)
+        (Completed section)
  - 00000011:
      - Course section 08: NES Graphics
         - Divided the code into multiple include (.inc) files
@@ -222,6 +232,26 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
  - Assembling, running and cleaning (deleting assembled files) can be done
    with a Makefile.
+
+
+///////////////////////////////////////////////////////////////////////////////
+// 6502 ASSEMBLY CODE:
+///////////////////////////////////////////////////////////////////////////////
+
+ - Roll-off: When decrementing $00 -> $FF
+ - Roll-off: When incrementing $FF -> $00
+ - Macros are copy/pasted code by the assembler
+ - Subroutines are jumps that happen at runtime
+ - Unnamed labels can be created with : and referenced with :- (previous) or :+ (next)
+ - Pointers are a 16-bit address stored as lo-byte, followed by hi-byte.
+   And are referenced by using parentheses.
+   Ptr: .res 2 ; Reserving 2 bytes (16 bits) for the pointer Ptr during variable declaration
+   lda #<Adr   ; Loading the lo-byte of the address Adr into A
+   sta Ptr     ; Storing the lo-byte to the pointer Ptr
+   lda #>Adr   ; Loading the hi-byte of the address Adr into A
+   sta Ptr+1   ; Storing the hi-byte to the pointer Ptr
+   (Ptr)       ; Referencing the pointer Ptr
+   (Ptr),y     ; Referencing the pointer Ptr with a offset Y (only the register Y can be used to offset a pointer)
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -482,9 +512,14 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    $2007 : PPU_DATA   : Write the data to be sent to the address
                         defined at PPU_ADDR
 
+ PPU_STATUS/PPU_ADDR/PPU_DATA:
+ - PPU_ADDR is a latch register that takes a 8-bit hi-byte, followed by
+   a 8-bit lo-byte and stores the combined values as a 16-bit memory address.
+ - When PPU_STATUS is read (e.g. BIT PPU_STATUS) the PPU_ADDR latch is reset.
+ - When storing a byte in PPU_DATA the PPU_ADDR is automatically incremented.
 
 //////////////////////////////////////////////////////////////////////////////
-// PPU memory map
+// PPU MEMORY MAP:
 //////////////////////////////////////////////////////////////////////////////
 
            $0000 ------- #-----------------# --------
@@ -515,6 +550,45 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                          #-----------------#
               
               
+//////////////////////////////////////////////////////////////////////////////
+// SPRITES:
+//////////////////////////////////////////////////////////////////////////////
+
+ - VRAM has 2048 bytes of storage capacity that is divided into 1024 bytes
+   assigned for each of the two nametables. Each nametable needs to store 
+   tiles and color data. Tiles are stored in the 32x30 tile grid and colors 
+   are stored in the 8x8 attribute grid. Each entry in both the tile grid and
+   the attribute grid needs 1 byte of storage space.
+   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
+ - A metasprite is a big sprite composed of 4 or more "hardware" sprites
+ - The OAM (Object Attribute Memory) is an internal memory inside the PPU
+   that dictates where and how sprites will be displayed.
+ - The OAM has 256 bytes of storage capacity and can store information 
+   of a total of 64 sprites.
+ - The OAM memory is implemented using dynamic memory instead of static memory.
+   Dynamic memory decays very fast, so we need to store the OAM data in RAM
+   and load the data from RAM to the PPU OAM memory every frame.
+ - We write the OAM data to RAM (usually between $0200-$02FF)
+ - We'll copy the contents from $0200-$02FF to the PPU OAM every frame (NMI).
+ - We start the OAM copy by writing to the $4014 register. The NES implements
+   this OAM copy via DMA (direct memory access (very fast)).
+ - Sprite attribute data in the OAM occupies 4 bytes:
+      3 2 1 0
+      | | |  \_ X position
+      | |  \_ Attribs -----> 7 6 5 4 3 2 1 0
+      |  \_ Tile #           | | |        \_\_ Color palette (4-7)
+       \_ Y position         | |  \_ Priority (0:in-front;1:behind background)
+                             |  \_ Flip sprite horizontally
+                              \_ Flip sprite vertically
+ - The NES supports a maximum of 8 different sprites per scanline.
+   The default behaviour is to hide sprites if there are more than 8.
+   The hiding of sprites can be prevented by continously changing the order of 
+   tiles in RAM / PPU OAM. This will cause a flickering effect for the tiles
+   if there are more than 8 tiles visible on the same scanline, but it is
+   better than the alternative, which is not displaying the excess tiles
+   at all. Most NES programmers back in the day implemented this technique.
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // LINKS / RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
@@ -540,30 +614,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
 
- - When PPU_STATUS is read (e.g. BIT PPU_STATUS) the PPU_ADDR latch is reset
- - When storing a byte in PPU_DATA the PPU_ADDR is automatically incremented
- - Macros are copy/pasted code by the assembler
- - Subroutines are jumps that happen at runtime
- - Unnamed labels can be created with : and referenced with :- (previous) or :+ (next)
- - Roll-off: When decrementing $00 -> $FF
- - Roll-off: When incrementing $FF -> $00
- - VRAM has 2048 bytes of storage capacity that is divided into 1024 bytes
-   assigned for each of the two nametables. Each nametable needs to store 
-   tiles and color data. Tiles are stored in the 32x30 tile grid and colors 
-   are stored in the 8x8 attribute grid. Each entry in both the tile grid and
-   the attribute grid needs 1 byte of storage space.
-   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
- - Pointers are a 16-bit address stored as lo-byte, followed by hi-byte.
-   And are referenced by using parentheses.
-   Ptr: .res 2 ; Reserving 2 bytes (16 bits) for the pointer Ptr during variable declaration
-   lda #<Adr   ; Loading the lo-byte of the address Adr into A
-   sta Ptr     ; Storing the lo-byte to the pointer Ptr
-   lda #>Adr   ; Loading the hi-byte of the address Adr into A
-   sta Ptr+1   ; Storing the hi-byte to the pointer Ptr
-   (Ptr)       ; Referencing the pointer Ptr
-   (Ptr),y     ; Referencing the pointer Ptr with a offset Y (only the register Y can be used to offset a pointer)
-
-
+ - ???
 
 
 
