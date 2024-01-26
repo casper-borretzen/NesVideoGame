@@ -1,6 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001000:
+     - Course section 13: Scrolling Background
+        - Implemented simple horizontally scrolling background
+        - Improved the scrolling background by swapping nametables when
+          reaching the end of the current one.
  - 00000111:
      - Course section 12: Subpixel movement
         - Changed player position to use 16-bit 8.8 fixed-point math, 
@@ -345,6 +350,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ; AND #%00001111 - Divisible by 16
      ; ETC.
 
+     ; EOR #1 can be used to flip a bit (0 -> 1 or 1 -> 0)
+
  - Jump, Branch, Compare Instructions:
      JMP  ; jump to another location     GOTO
 
@@ -540,6 +547,21 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    The first color in every indvidual palette is the background color.
  - The pattern tables can be thought of as different brushes 
    while the nametable is the canvas in which we paint the final result.
+
+ - Nametable mirroring is used to enable scrolling backgrounds:
+
+            VERTICAL MIRRORING:         HORIZONTAL MIRRORING:
+            USED FOR GAMES THAT         USED FOR GAMES THAT
+            SCROLL HORIZONTALLY         SCROLL VERTICALLY
+                 --- ---                
+                | A | B |                 ---    M    ---
+                 --- ---                 | A | <-I-> | A |
+                  |   |                   ---    R    ---
+                 [MIRROR]                | B | <-R-> | B |
+                  |   |                   ---    O    --- 
+                 --- ---                         R        
+                | A | B |
+                 --- ---
 
 
 ///////////////////////////////////////////////////////////////////////////////
