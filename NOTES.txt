@@ -1,6 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00000110:
+     - Course section 11: Controller input
+        - Implemented Buttons variable and subroutine to read button presses
+          and store them in the variable.
+        - Mapped directional button presses to move player sprite
+        - Changed the values for controller related operations to constants
+        (Completed section)
  - 00000101:
      - Course section 10: Sprites
         - Added test sprite data(SpriteData), a subroutine for storing sprite 
@@ -160,7 +167,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// CPU MEMORY MAP
+// CPU MEMORY MAP:
 ///////////////////////////////////////////////////////////////////////////////
 
  $0000           $2000           $4020                                   $FFFF
@@ -242,6 +249,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Roll-off: When incrementing $FF -> $00
  - Macros are copy/pasted code by the assembler
  - Subroutines are jumps that happen at runtime
+ - Labels are memory addresses that can be referenced by name
  - Unnamed labels can be created with : and referenced with :- (previous) or :+ (next)
  - Pointers are a 16-bit address stored as lo-byte, followed by hi-byte.
    And are referenced by using parentheses.
@@ -312,6 +320,13 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ORA  ; logical inclusive OR
      BIT  ; bit test
 
+     ; AND: The result of a logical AND is only true if both inputs are true.
+     ;      A bitwise AND can be used to mask certain bits of a byte.
+     ; ORA: The result of a logical OR (ORA) is true if at least
+     ;      one of the inputs are true.
+     ; EOR: An Exclusive-OR is similar to logical OR, with the exception that
+     ;     it is false when both inputs are true.
+
  - Jump, Branch, Compare Instructions:
      JMP  ; jump to another location     GOTO
 
@@ -333,6 +348,21 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      LSR  ; logical shift right
      ROL  ; rotate left
      ROR  ; rotate right
+
+     ; LSR: Logical Shift Right, moves all bits one step to the right.
+     ;      Inserting a 0 in the leftmost bit and moving the rightmost bit
+     ;      to the carry flag.
+     ;      1 0 1 0 1 1 1 1 -> [1] 0 1 0 1 0 1 1 1
+     ; ASL: Logical Shift Left, same as LSR but moving bits one step to the left.
+     ;      Inserting a 0 in the rightmost bit and moving the leftmost bit
+     ;      to the carry flag.
+     ;      1 0 1 0 1 1 1 1 -> [1] 0 1 0 1 1 1 1 0
+     ; ROR: Rotate Right, moves all the bits one step right.
+     ;      The rightmost bit moves over to the leftmost side.
+     ;      1 0 1 0 1 1 1 1 -> 1 1 0 1 0 1 1 1
+     ; ROL: Rotate Left, moves all the bits one step left.
+     ;      The leftmost bit moves over to the rightmost side.
+     ;      1 0 1 0 1 1 1 1 -> 0 1 0 1 1 1 1 1
 
  - Transfer Instructions:
      TAX  ; transfer A to X
@@ -401,36 +431,98 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-
- - A vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
-   but more pattern tables can be added if the cartridge has a mapper.
- - The pattern tables can be thought of as different brushes 
-   while the name table is the canvas in which we paint the final result.
- - The color palette contains 16 colors for painting the background tiles
-   and 16 colors for painting the sprites. The 16 colors are in 4 sets of 4
-   [1 2 3 4] [5 6 7 8] [9 10 11 12] [13 14 15 16] and the first color in every
-   set (both in background and sprite) is the same in every set and is
-   the main background color.
- - Each NTSC frame has a total of 262 scanlines.
-   (240 visible scanlines + 21 scanlines of Vertical Blank)
+ 
+ - Each NTSC frame has a total of 262 scanlines:
+   240 visible scanlines + 21 scanlines of VBLANK + 1 scanline of pre-VBLANK
  - VRAM has to be updated during the period of VBLANK
  - The PPU triggers an NMI interrupt to the CPU every time a new VBLANK starts.
  - HBLANK is the time it takes from the beam to go from right to left again
    after each scanline. The PPU handles this for us.
  - Each scanline lasts 341 PPU clock-cycles. This is the same as
    113.6 CPU clock cycles. 1 CPU cycle = 3 PPU cycles.
- - For an NTSC frame: 240 scanlines are visible, 1 scanline is pre-VBLANK,
-   and the remaining 21 scanlines are VBLANK.
+
+///////////////////////////////////////////////////////////////////////////////
+// PATTERN TABLES AND NAMETABLES:
+///////////////////////////////////////////////////////////////////////////////
+
+           [8x8 TILE]         
+         0 0 1 1 2 2 3 3      [PATTERN TABLE]          [CARTRIDGE]
+         0 0 1 1 2 2 3 3      ---------------       ------------------
+         0 0 1 1 2 2 3 3     |   256 TILES   |     | 2 PATTERN TABLES |
+         0 0 1 1 2 2 3 3 --> | STORED IN ONE | --> |    STORED ON     |
+         0 0 1 1 2 2 3 3     | PATTERN TABLE |     |    CARTRIDGE     |
+         0 0 1 1 2 2 3 3      ---------------       ------------------
+         0 0 1 1 2 2 3 3                                  | 
+         0 0 1 1 2 2 3 3                                  |
+          \                                               |
+          COLOR INDEX (0-3)                               |
+                                                          |
+                                                          |
+                          [NAMETABLE]                     |
+                           1024 BYTES                     |
+                    -----------------------               |
+                   |       960 BYTES:      |              |
+                   | STORES 960 REFERENCES |  <-----------+
+                   |   TO TILES SELECTED   |
+                   |  FROM THE BACKGROUND  |          [VRAM]
+                   |     PATTERN TABLE     |        2048 BYTES
+                   |    FORMING A 32x30    |       ------------
+                   |   GRID TO FILL THE    |      |  STORES 2  |
+                   |     ENTIRE SCREEN     |      | NAMETABLES |
+                    -----------------------   --> | CONTAINING |
+                   |       64 BYTES:       |      | TILES AND  |
+                   | STORES 64 REFERENCES  |      | COLOR DATA |
+                   |   TO COLOR PALETTES   |       ------------
+                   |   SELECTED FROM THE   |
+                   |   BACKGROUND COLOR    |
+                   |  PALETTE SET FORMING  |   
+                   |  A 8x8 GRID TO COLOR  |  <-----------+
+                   |   ALL THE TILES IN    |              |
+                   |     GROUPS OF 4       |              |
+                    -----------------------               |
+                                                          |
+                                                          |
+         [SET OF COLOR PALETTES]                        [WRAM]
+                16 BYTES                               32 BYTES
+    [01 02 03 04] ----------> PALETTE #1       --------------------------
+       [05 06 07 08] -------> PALETTE #2      | 2 SETS OF COLOR PALETTES |
+          [09 10 11 12] ----> PALETTE #3  --> |  ONE SET FOR BACKGROUND  |
+             [13 14 15 16] -> PALETTE #4      |  AND ONE SET FOR SPRITES |
+                \                              -------------------------- 
+                 1 BYTE REPRESENTING          
+                 A SINGLE COLOR
+
+ - A vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
+   but more pattern tables can be added if the cartridge has a mapper.
+   A pattern table contains 256 tiles. A tile can be 8x8 or 8x16.
+   Each "pixel" on a tile contains a value from 0-3, representing an index
+   to reference a color from the selected a color palette.
+ - VRAM contains two nametables used to draw the background.
+   Each nametable needs to store tiles (from the pattern tables)
+   and color data. VRAM has 2048 bytes of storage capacity that 
+   is divided into 1024 bytes assigned for each of the two nametables.
+   Tiles are stored in the 32x30 tile grid and colors are stored
+   in the 8x8 attribute grid. Each entry in both the tile grid and
+   the attribute grid needs 1 byte of storage space.
+   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
+ - The color palette contains two sets of 4 color palettes.
+   One set for painting the background tiles and one set for painting 
+   the sprites. Each set contain 4 palettes and each individual palette
+   contains 4 colors represented as a value between 0-255.
+   The first color in every indvidual palette is the background color.
+ - The pattern tables can be thought of as different brushes 
+   while the nametable is the canvas in which we paint the final result.
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
                                 COLOR PALETTE
                                 -------------
-                                (16)BACKGROUND
-                                (16)SPRITES
-                                -------------
-  PATTERN TABLE 0                     |                        NAME TABLE 0
-  PATTERN TABLE 1                     |                        NAME TABLE 1
+                                (4)BACKGROUND                  
+                                (4)SPRITES                     NAME TABLE 0
+                                -------------                  + ATTRIBUTES
+  PATTERN TABLE 0                     |                        NAME TABLE 1
+  PATTERN TABLE 1                     |                        + ATTRIBUTES
         |                             |                             |
      CHR-ROM <--------------------> [PPU] <--------------------> 2KB VRAM
    (CARTRIDGE)             (PICTURE PROCESSING UNIT)            (VIDEO RAM)
@@ -551,15 +643,16 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
               
               
 //////////////////////////////////////////////////////////////////////////////
-// SPRITES:
+// PPU OAM / SPRITES:
 //////////////////////////////////////////////////////////////////////////////
 
- - VRAM has 2048 bytes of storage capacity that is divided into 1024 bytes
-   assigned for each of the two nametables. Each nametable needs to store 
-   tiles and color data. Tiles are stored in the 32x30 tile grid and colors 
-   are stored in the 8x8 attribute grid. Each entry in both the tile grid and
-   the attribute grid needs 1 byte of storage space.
-   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
+ - The NES supports a maximum of 8 different sprites per scanline.
+   The default behaviour is to hide sprites if there are more than 8.
+   The hiding of sprites can be prevented by continously changing the order of 
+   tiles in RAM / PPU OAM. This will cause a flickering effect for the tiles
+   if there are more than 8 tiles visible on the same scanline, but it is
+   better than the alternative, which is not displaying the excess tiles
+   at all. Most NES programmers back in the day implemented this technique.
  - A metasprite is a big sprite composed of 4 or more "hardware" sprites
  - The OAM (Object Attribute Memory) is an internal memory inside the PPU
    that dictates where and how sprites will be displayed.
@@ -573,6 +666,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - We start the OAM copy by writing to the $4014 register. The NES implements
    this OAM copy via DMA (direct memory access (very fast)).
  - Sprite attribute data in the OAM occupies 4 bytes:
+ 
       3 2 1 0
       | | |  \_ X position
       | |  \_ Attribs -----> 7 6 5 4 3 2 1 0
@@ -580,21 +674,39 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
        \_ Y position         | |  \_ Priority (0:in-front;1:behind background)
                              |  \_ Flip sprite horizontally
                               \_ Flip sprite vertically
- - The NES supports a maximum of 8 different sprites per scanline.
-   The default behaviour is to hide sprites if there are more than 8.
-   The hiding of sprites can be prevented by continously changing the order of 
-   tiles in RAM / PPU OAM. This will cause a flickering effect for the tiles
-   if there are more than 8 tiles visible on the same scanline, but it is
-   better than the alternative, which is not displaying the excess tiles
-   at all. Most NES programmers back in the day implemented this technique.
 
+
+///////////////////////////////////////////////////////////////////////////////
+// CONTROLLER:
+///////////////////////////////////////////////////////////////////////////////
+
+   -----------------------
+  |                       |
+  |    |                  |
+  |  -   -                |
+  |    |    == ==   O O   |
+  |        /  /      \ \  |
+     SELECT  START    B A
+
+      0 0 0 0 0 0 0 0
+      | | | | | | |  \ 
+      | | | | | |  \  RIGHT
+      | | | | |  \  LEFT
+      | | | |  \  DOWN
+      | | |  \  UP 
+      | |  \  START
+      |  \  SELECT
+       \  B
+        A
+
+ - $4016 is the address for the controller
 
 ///////////////////////////////////////////////////////////////////////////////
 // LINKS / RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
 
  - Tile Editors:
-    - NEXXT: https://frankengraphics.itch.io/nexxt
+    - NEXXT (Windows): https://frankengraphics.itch.io/nexxt
 
  - NESdev Wiki:
     - iNES header:   https://www.nesdev.org/wiki/INES
@@ -613,9 +725,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 ///////////////////////////////////////////////////////////////////////////////
 // OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
-
- - ???
-
 
 
 
