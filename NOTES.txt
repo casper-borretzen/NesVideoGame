@@ -1,6 +1,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00000111:
+     - Course section 12: Subpixel movement
+        - Changed player position to use 16-bit 8.8 fixed-point math, 
+          affected by acceleration and velocity.
  - 00000110:
      - Course section 11: Controller input
         - Implemented Buttons variable and subroutine to read button presses
@@ -343,6 +347,15 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      CPX  ; compare X register
      CPY  ; compare Y register
 
+     ; The CMP instruction is used to compare a value from memory with the one 
+     ; in the accumulator. It sets the N(egative), Z(ero) and C(arry) flags
+     ; depending on the result of the comparison:
+     ; 
+     ;   CMP Value:    N Z C
+     ;   If A < Value  - 0 0
+     ;   If A = Value  0 1 1
+     ;   If A > Value  - 0 1
+
  - Shift and Rotate Instructions:
      ASL  ; arithmetic shift left
      LSR  ; logical shift right
@@ -445,8 +458,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // PATTERN TABLES AND NAMETABLES:
 ///////////////////////////////////////////////////////////////////////////////
 
-           [8x8 TILE]         
-         0 0 1 1 2 2 3 3      [PATTERN TABLE]          [CARTRIDGE]
+           [8x8  TILE]
+            16  BYTES         [PATTERN TABLE]           [CHR-ROM]
+         0 0 1 1 2 2 3 3        4096  BYTES             8192 BYTES   
          0 0 1 1 2 2 3 3      ---------------       ------------------
          0 0 1 1 2 2 3 3     |   256 TILES   |     | 2 PATTERN TABLES |
          0 0 1 1 2 2 3 3 --> | STORED IN ONE | --> |    STORED ON     |
@@ -461,7 +475,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                           [NAMETABLE]                     |
                            1024 BYTES                     |
                     -----------------------               |
-                   |       960 BYTES:      |              |
+                   |       960 BYTES:      |    REFERENCE |
                    | STORES 960 REFERENCES |  <-----------+
                    |   TO TILES SELECTED   |
                    |  FROM THE BACKGROUND  |          [VRAM]
@@ -475,7 +489,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                    |   TO COLOR PALETTES   |       ------------
                    |   SELECTED FROM THE   |
                    |   BACKGROUND COLOR    |
-                   |  PALETTE SET FORMING  |   
+                   |  PALETTE SET FORMING  |    REFERENCE
                    |  A 8x8 GRID TO COLOR  |  <-----------+
                    |   ALL THE TILES IN    |              |
                    |     GROUPS OF 4       |              |
@@ -490,7 +504,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
              [13 14 15 16] -> PALETTE #4      |  AND ONE SET FOR SPRITES |
                 \                              -------------------------- 
                  1 BYTE REPRESENTING          
-                 A SINGLE COLOR
+                    A SINGLE COLOR
 
  - A vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
    but more pattern tables can be added if the cartridge has a mapper.
@@ -643,7 +657,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
               
               
 //////////////////////////////////////////////////////////////////////////////
-// PPU OAM / SPRITES:
+// SPRITES / PPU OAM:
 //////////////////////////////////////////////////////////////////////////////
 
  - The NES supports a maximum of 8 different sprites per scanline.
@@ -657,7 +671,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - The OAM (Object Attribute Memory) is an internal memory inside the PPU
    that dictates where and how sprites will be displayed.
  - The OAM has 256 bytes of storage capacity and can store information 
-   of a total of 64 sprites.
+   of a total of 64 sprites selected from the sprite pattern table.
  - The OAM memory is implemented using dynamic memory instead of static memory.
    Dynamic memory decays very fast, so we need to store the OAM data in RAM
    and load the data from RAM to the PPU OAM memory every frame.
@@ -680,26 +694,18 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // CONTROLLER:
 ///////////////////////////////////////////////////////////////////////////////
 
-   -----------------------
-  |                       |
-  |    |                  |
-  |  -   -                |
-  |    |    == ==   O O   |
-  |        /  /      \ \  |
-     SELECT  START    B A
-
-      0 0 0 0 0 0 0 0
-      | | | | | | |  \ 
-      | | | | | |  \  RIGHT
-      | | | | |  \  LEFT
-      | | | |  \  DOWN
-      | | |  \  UP 
-      | |  \  START
-      |  \  SELECT
-       \  B
-        A
-
- - $4016 is the address for the controller
+            
+      -----------------------       READ/WRITE      
+     |                       |  <--- [LATCH]--->  0 0 0 0 0 0 0 0      
+     |    |                  |                    | | | | | | |  \ 
+     |  -   -                |                    | | | | | |  \  RIGHT
+     |    |    == ==   O O   |                    | | | | |  \  LEFT
+     |        /  /      \ \  |                    | | | |  \  DOWN
+        SELECT  START    B A                      | | |  \  UP 
+                                                  | |  \  START
+                                                  |  \  SELECT
+  - $4016 is the address for the 1st controller    \  B
+  - $4017 is the address for the 2nd controller     A
 
 ///////////////////////////////////////////////////////////////////////////////
 // LINKS / RESOURCES:
@@ -715,6 +721,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
  - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
 
+ - NROM template: https://github.com/pinobatch/nrom-template
+
  - NesHacker videos:
     - NES Hardware Explained:         https://youtu.be/mMq4FFUnBPc
     - NES Architecture Explained:     https://youtu.be/PwZEBE66an0
@@ -725,6 +733,12 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 ///////////////////////////////////////////////////////////////////////////////
 // OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
+
+
+ - Acceleration is change in velocity per unit of time
+ - Velocity is change in position per unit of time
+ - 16-bit X position using 8.8 fixed-point math: hi-byte . lo-byte
+                                      Integer part /          \ Fractional part
 
 
 
