@@ -8,13 +8,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .segment "ZEROPAGE"
 Buttons: .res 1               ; Reserve 1 byte to store button state (A|B|SELECT|START|UP|DOWN|LEFT|RIGHT)
-XPos:    .res 2               ; Player X position (8.8 fixed-point math) - Xhi + Xlo/256
-YPos:    .res 2               ; Player Y position (8.8 fixed-point math) - Yhi + Ylo/256
-XVel:    .res 1               ; Player X speed in pixels per 256 frames
-YVel:    .res 1               ; Player Y speed in pixels per 256 frames
-Frame:   .res 1               ; Reserve 1 byte to store the number of frames
-Clock60: .res 1               ; Reserve 1 byte to store a counter that increments every second (60 frames)
-BgPtr:   .res 2               ; Reserve 2 bytes (16 bits) to store a pointer to the background address (we store first the lo-byte, and immediately after, the hi-byte) - little endian
+
+XPos:       .res 2            ; Player X position (8.8 fixed-point math) - Xhi + Xlo/256
+YPos:       .res 2            ; Player Y position (8.8 fixed-point math) - Yhi + Ylo/256
+
+XVel:       .res 1            ; Player X (signed) velocity in pixels per 256 frames
+YVel:       .res 1            ; Player Y (signed) velocity in pixels per 256 frames
+
+TileOffset: .res 1            ; +0 or +4
+
+Frame:      .res 1            ; Reserve 1 byte to store the number of frames
+Clock60:    .res 1            ; Reserve 1 byte to store a counter that increments every second (60 frames)
+BgPtr:      .res 2            ; Reserve 2 bytes (16 bits) to store a pointer to the background address (we store first the lo-byte, and immediately after, the hi-byte) - little endian
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Constants for player movement
@@ -111,9 +116,7 @@ InitVariables:
     lda #0
     sta Frame                 ; Initialize the Frame variable
     sta Clock60               ; Initialize the Clock60 variable
-    
-    lda #20
-    sta XVel
+    sta TileOffset            ; Initialize the TileOffset variable
 
     ldx #0
     lda SpriteData,x
@@ -159,55 +162,61 @@ CheckRightButton:
     and #BUTTON_RIGHT
     beq NotRight
       lda XVel
-      clc
-      adc #ACCEL              ; Add the acceleration to the velocity
-      cmp #MAXSPEED           ; Check if we've reached MAXSPEED
-      bcc :+
-        lda #MAXSPEED         ; Clamp the maximum speed
-      :
-      sta XVel                ; Save the new updated velocity
-      jmp CheckLeftButton
+      bmi NotRight            ; Bypassing if the velocity is negative
+        clc
+        adc #ACCEL            ; Add the acceleration to the velocity
+        cmp #MAXSPEED         ; Check if we've reached MAXSPEED
+        bcc :+
+          lda #MAXSPEED       ; Clamp the maximum speed
+        :
+        sta XVel              ; Save the new updated velocity
+        jmp CheckLeftButton
     NotRight:
       lda XVel                
-      cmp #BRAKE              ; Check if we can subtract from the velocity
-      bcs :+
-        lda #BRAKE+1          ; Force it to be the BRAKE (+1 to compensate for the carry)
-      :
-      sbc #BRAKE              ; Subtracting the brake from the velocity
-      sta XVel                ; Save the new updated velocity
+      bmi CheckLeftButton     ; Skip if velocity is negative
+        cmp #BRAKE            ; Check if we can subtract from the velocity
+        bcs :+
+          lda #BRAKE+1        ; Force it to be the BRAKE (+1 to compensate for the carry)
+        :
+        sbc #BRAKE            ; Subtracting the brake from the velocity
+        sta XVel              ; Save the new updated velocity
 CheckLeftButton:
     lda Buttons
     and #BUTTON_LEFT
-    beq CheckDownButton
-      dec XPos
+    beq NotLeft
+      lda XVel
+      beq :+
+        bpl NotLeft
+      :
+      sec 
+      sbc #ACCEL
+      cmp #256-MAXSPEED
+      bcs :+
+        lda #256-MAXSPEED
+      :
+      sta XVel
+      jmp CheckDownButton
+    NotLeft:
+        lda XVel
+        bpl CheckDownButton
+        cmp #256-BRAKE
+        bcc :+
+          lda #256-BRAKE
+        :
+        adc #BRAKE
+        sta XVel
 CheckDownButton:
-    lda Buttons
-    and #BUTTON_DOWN
-    beq CheckUpButton
-      inc YPos
 CheckUpButton:
-    lda Buttons
-    and #BUTTON_UP
-    beq :+
-      dec YPos
-;CheckSelectButton:
-;    lda Buttons
-;    and #%00010000
-;    beq CheckStartButton
-;CheckStartButton:
-;    lda Buttons
-;    and #%00100000
-;    beq CheckBButton
-;CheckBButton:
-;    lda Buttons
-;    and #%01000000
-;    beq CheckAButton
-;CheckAButton:
-;    lda Buttons
-;    and #%10000000
-:
+CheckSelectButton:
+CheckStartButton:
+CheckBButton:
+CheckAButton:
+
 UpdateSpritePosition:
     lda XVel
+    bpl:+
+      dec XPos+1              ; If velocity is negative, decrement 1 from hi-byte to sign-extend
+    :
     clc
     adc XPos                  ; Add the velocity to the X position lo-byte
     sta XPos
@@ -231,6 +240,35 @@ DrawSpriteTile:
     adc #8
     sta $0208
     sta $020C
+
+    lda #0
+    sta TileOffset            ; Set TileOffset to 0
+    lda XPos+1
+    and #%00000001            ; Check if XPos number is even or odd
+    beq :+                    ; 
+      lda #4        
+      sta TileOffset          ; If the number is even (last bit in the hi-byte is 0) then set TileOffset to 4
+    :
+
+    lda #$18                  ; Here we will adjust the tank tiles to perform the animation
+    clc
+    adc TileOffset            ; Add 0 or 4 to point to the correct animation tile
+    sta $201
+    
+    lda #$1A                  ; Here we will adjust the tank tiles to perform the animation
+    clc
+    adc TileOffset            ; Add 0 or 4 to point to the correct animation tile
+    sta $205
+    
+    lda #$19                  ; Here we will adjust the tank tiles to perform the animation
+    clc
+    adc TileOffset            ; Add 0 or 4 to point to the correct animation tile
+    sta $209
+    
+    lda #$1B                  ; Here we will adjust the tank tiles to perform the animation
+    clc
+    adc TileOffset            ; Add 0 or 4 to point to the correct animation tile
+    sta $20D
 
     lda Frame
     cmp #60                   ; Compare frame with #60

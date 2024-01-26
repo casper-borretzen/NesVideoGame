@@ -5,6 +5,9 @@
      - Course section 12: Subpixel movement
         - Changed player position to use 16-bit 8.8 fixed-point math, 
           affected by acceleration and velocity.
+        - Implemented signed velocity to support negative values.
+        - Added animation when moving
+        (Completed section)
  - 00000110:
      - Course section 11: Controller input
         - Implemented Buttons variable and subroutine to read button presses
@@ -330,6 +333,17 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ;      one of the inputs are true.
      ; EOR: An Exclusive-OR is similar to logical OR, with the exception that
      ;     it is false when both inputs are true.
+
+
+     ; AND #%00000001 - Can be used to mask all but the rightmost bit, if the
+     ; result is true it means the original number is an
+     ; even number and divisible by two.
+     ; AND #%00000011 - Can be used to mask all but the two rightmost bits, if the
+     ; result is true it means the original number is divisible by four.
+     ; AND #%00000111 - If the result is true the original number is 
+     ; divisible by eight
+     ; AND #%00001111 - Divisible by 16
+     ; ETC.
 
  - Jump, Branch, Compare Instructions:
      JMP  ; jump to another location     GOTO
@@ -696,7 +710,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
             
       -----------------------       READ/WRITE      
-     |                       |  <--- [LATCH]--->  0 0 0 0 0 0 0 0      
+     |                       |  <--- [LATCH]--->  7 6 5 4 3 2 1 0      
      |    |                  |                    | | | | | | |  \ 
      |  -   -                |                    | | | | | |  \  RIGHT
      |    |    == ==   O O   |                    | | | | |  \  LEFT
@@ -734,11 +748,14 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
 
-
  - Acceleration is change in velocity per unit of time
  - Velocity is change in position per unit of time
  - 16-bit X position using 8.8 fixed-point math: hi-byte . lo-byte
                                       Integer part /          \ Fractional part
-
-
+ - 8-bit -> 16-bit sign extension:
+   To sign extend any number from 8 bits to 16 bits, we look at the sign-bit 
+   of the original number and we copy it to all the new bits of the high-byte 
+   of the new 16-bit number. If the original sign-bit was 0, we fill all the 
+   left new bits with 0. If the original sign-bit was 1, we fill all the 
+   new left bits with 1.
 
