@@ -6,15 +6,18 @@
         - Implemented simple horizontally scrolling background
         - Improved the scrolling background by swapping nametables when
           reaching the end of the current one.
+        - Changed the project structure and moved from making simple examples
+          to working on a bigger game prototype "Atlantico" (09_atlantico)
+        - Implemented dynamic loading of scrolling background.
  - 00000111:
-     - Course section 12: Subpixel movement
+     - Course section 12: Subpixel Movement
         - Changed player position to use 16-bit 8.8 fixed-point math, 
           affected by acceleration and velocity.
         - Implemented signed velocity to support negative values.
         - Added animation when moving
         (Completed section)
  - 00000110:
-     - Course section 11: Controller input
+     - Course section 11: Controller Input
         - Implemented Buttons variable and subroutine to read button presses
           and store them in the variable.
         - Mapped directional button presses to move player sprite
@@ -272,6 +275,21 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    sta Ptr+1   ; Storing the hi-byte to the pointer Ptr
    (Ptr)       ; Referencing the pointer Ptr
    (Ptr),y     ; Referencing the pointer Ptr with a offset Y (only the register Y can be used to offset a pointer)
+ - Multiplication and division by 2,4,6,8,16 etc. can by done with bit shifting
+   (ASL) Shifting left is equivalent to multiplying by 2.
+   Example: (27) 00011011 * 2 = (54) 00110110
+   (LSR) Shifting right is equivalent to dividing by 2.
+   Example: (74) 01001010 / 2 = (37) 00100101
+ - Two bytes can be combined to create a decimal number with the hi-byte
+   representing the integer part and the lo-byte the fractional part of the number.
+   16-bit number using 8.8 fixed-point math: hi-byte . lo-byte
+                                      Integer part /          \ Fractional part
+ - 8-bit -> 16-bit sign extension:
+   To sign extend any number from 8 bits to 16 bits, we look at the sign-bit 
+   of the original number and we copy it to all the new bits of the high-byte 
+   of the new 16-bit number. If the original sign-bit was 0, we fill all the 
+   left new bits with 0. If the original sign-bit was 1, we fill all the 
+   new left bits with 1.
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -348,7 +366,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ; AND #%00000111 - If the result is true the original number is 
      ; divisible by eight
      ; AND #%00001111 - Divisible by 16
-     ; ETC.
+     ; et cetera...
 
      ; EOR #1 can be used to flip a bit (0 -> 1 or 1 -> 0)
 
@@ -491,7 +509,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
          0 0 1 1 2 2 3 3                                  |
           \                                               |
           COLOR INDEX (0-3)                               |
-                                                          |
+              2 BITS                                      |
                                                           |
                           [NAMETABLE]                     |
                            1024 BYTES                     |
@@ -601,15 +619,16 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                          | | | | | |   00: $2000  ;  01: $2400
                          | | | | | |   10: $2800  ;  11: $2C00
                          | | | | |  \
-                         | | | | |   Sprite pattern table address
-                         | | | | |   0: $0000     ;      1: $1000
+                         | | | | |   PPU_DATA increment size
+                         | | | | |   0: add 1, going accross
+                         | | | | |   1: add 32, going down
                          | | | |  \
                          | | | |   Sprite pattern table no. (0;1)
                          | | |  \
                          | | |   Background pattern table no. (0;1)
                          | |  \
                          | |   Sprite size
-                         | |  0:8x8; 1:16x16
+                         | |  0:8x8; 1:8x16
                          |  \
                          |   PPU master/slave select (0;1)
                           \
@@ -770,14 +789,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
 
- - Acceleration is change in velocity per unit of time
- - Velocity is change in position per unit of time
- - 16-bit X position using 8.8 fixed-point math: hi-byte . lo-byte
-                                      Integer part /          \ Fractional part
- - 8-bit -> 16-bit sign extension:
-   To sign extend any number from 8 bits to 16 bits, we look at the sign-bit 
-   of the original number and we copy it to all the new bits of the high-byte 
-   of the new 16-bit number. If the original sign-bit was 0, we fill all the 
-   left new bits with 0. If the original sign-bit was 1, we fill all the 
-   new left bits with 1.
+ - Acceleration -> Velocity -> Position:
+   Acceleration is change in velocity per unit of time.
+   Velocity is change in position per unit of time.
+   
 
