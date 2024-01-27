@@ -137,6 +137,73 @@ LoopSprite:
 .endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Routine to draw a new attributes off-screen every 32 pixels
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc DrawNewAttribs
+    lda CurrNametable
+    eor #1
+    asl
+    asl
+    clc
+    adc #$23
+    sta NewColAddr+1
+
+    lda XScroll
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc #$C0
+    sta NewColAddr
+
+    lda Column
+    and #%11111100
+    asl
+    sta SourceAddr
+
+    lda Column
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    lsr
+    sta SourceAddr+1
+
+    lda SourceAddr
+    clc
+    adc #<AttributeData
+    sta SourceAddr
+
+    lda SourceAddr+1
+    adc #>AttributeData
+    sta SourceAddr+1
+
+    DrawAttribute:
+      bit PPU_STATUS
+      ldy #0
+      DrawAttribLoop:
+        lda NewColAddr+1
+        sta PPU_ADDR
+        lda NewColAddr
+        sta PPU_ADDR
+        lda (SourceAddr),y
+        sta PPU_DATA
+        iny
+        cpy #8
+        beq :+
+          lda NewColAddr
+          clc
+          adc #8
+          sta NewColAddr
+          jmp DrawAttribLoop
+        :
+    rts
+.endproc
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reset handler (called when the NES resets or powers on)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Reset:
@@ -179,6 +246,34 @@ InitBackgroundTiles:
     lda #%00000000
     sta PPU_CTRL
 
+InitAttributes:
+    lda #1
+    sta CurrNametable
+    lda #0
+    sta XScroll
+    sta Column
+InitAttribsLoop:
+    jsr DrawNewAttribs
+    lda XScroll
+    clc
+    adc #32
+    sta XScroll
+
+    lda Column
+    clc
+    adc #4
+    sta Column
+    cmp #32
+    bne InitAttribsLoop
+
+    lda #0
+    sta CurrNametable
+    lda #1
+    sta XScroll
+    jsr DrawNewAttribs
+
+    inc Column
+
 EnableRendering:
     lda #%10010000           ; Enable NMI and set background to use the 2nd pattern table (at $1000)
     sta PPU_CTRL
@@ -204,7 +299,7 @@ OAMStartDMACopy:             ; DMA copy of OAM data from RAM to PPU
 NewColumnCheck:
     lda XScroll
     and #%00000111           ; Check if the scroll a multiple of 8
-    bne EndColumnCheck       ; If it isn't, we still don't need to draw a new column
+    bne :+                   ; If it isn't, we still don't need to draw a new column
       jsr DrawNewColumn      ; If it is a multiple of 8, we proceed to draw a new column of tiles!
     Clamp128Cols:
       lda Column
@@ -212,8 +307,14 @@ NewColumnCheck:
       adc #1                 ; Column++
       and #%01111111         ; Drop the left-most bit to wrap around 128
       sta Column             ; Clamping the value to never go beyond 128
-    
-    EndColumnCheck:
+    :
+
+NewAttribsCheck:
+    lda XScroll
+    and #%00011111
+    bne :+
+      jsr DrawNewAttribs
+    :
 
 ScrollBackground:
     inc XScroll              ; XScroll++

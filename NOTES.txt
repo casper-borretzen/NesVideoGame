@@ -1,6 +1,11 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001001:
+     - Course section 13: Scrolling Background
+        - Implemented dynamic loading of scrolling color attribute data
+          for the background
+        (Completed section)
  - 00001000:
      - Course section 13: Scrolling Background
         - Implemented simple horizontally scrolling background
@@ -8,7 +13,7 @@
           reaching the end of the current one.
         - Changed the project structure and moved from making simple examples
           to working on a bigger game prototype "Atlantico" (09_atlantico)
-        - Implemented dynamic loading of scrolling background.
+        - Implemented dynamic loading of scrolling background tiles.
  - 00000111:
      - Course section 12: Subpixel Movement
         - Changed player position to use 16-bit 8.8 fixed-point math, 
@@ -575,7 +580,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                 | A | B |                 ---    M    ---
                  --- ---                 | A | <-I-> | A |
                   |   |                   ---    R    ---
-                 [MIRROR]                | B | <-R-> | B |
+               M I R R O R               | B | <-R-> | B |
                   |   |                   ---    O    --- 
                  --- ---                         R        
                 | A | B |
