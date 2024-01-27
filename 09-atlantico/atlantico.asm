@@ -4,23 +4,27 @@
 .include "utils.inc"
 
 .segment "ZEROPAGE"
-Buttons:       .res 1        ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
+CountGameLoop:  .res 1
+CountVBlank:    .res 1
 
-XPos:          .res 2        ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
-YPos:          .res 2        ; Player Y 16-bit position (8.8 fixed-point): hi+lo/256px
+Buttons:        .res 1       ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
 
-XVel:          .res 1        ; Player X (signed) velocity (in pixels per 256 frames)
-YVel:          .res 1        ; Player Y (signed) velocity (in pixels per 256 frames)
+XPos:           .res 2       ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
+YPos:           .res 2       ; Player Y 16-bit position (8.8 fixed-point): hi+lo/256px
 
-Frame:         .res 1        ; Counts frames (0 to 255 and repeats)
-Clock60:       .res 1        ; Counter that increments per second (60 frames)
-BgPtr:         .res 2        ; Pointer to background address - 16bits (lo,hi)
+XVel:           .res 1       ; Player X (signed) velocity (in pixels per 256 frames)
+YVel:           .res 1       ; Player Y (signed) velocity (in pixels per 256 frames)
 
-XScroll:       .res 1        ; Store the horizontal scroll position
-CurrNametable: .res 1        ; Store the current starting nametable (0 or 1)
-Column:        .res 1        ; Stores the column (of tiles) we are in the level
-NewColAddr:    .res 2        ; The destination address of the new column in PPU
-SourceAddr:    .res 2        ; The source address in ROM of the new column tiles
+Frame:          .res 1       ; Counts frames (0 to 255 and repeats)
+IsDrawComplete: .res 1       ; Flag to indicate when VBlank is done drawing
+Clock60:        .res 1       ; Counter that increments per second (60 frames)
+BgPtr:          .res 2       ; Pointer to background address - 16bits (lo,hi)
+
+XScroll:        .res 1       ; Store the horizontal scroll position
+CurrNametable:  .res 1       ; Store the current starting nametable (0 or 1)
+Column:         .res 1       ; Stores the column (of tiles) we are in the level
+NewColAddr:     .res 2       ; The destination address of the new column in PPU
+SourceAddr:     .res 2       ; The source address in ROM of the new column tiles
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -68,7 +72,7 @@ LoopSprite:
     lda SpriteData,x         ; We fetch bytes from the SpriteData lookup table
     sta $0200,x              ; We store the bytes starting at OAM address $0200
     inx                      ; X++
-    cpx #16
+    cpx #20
     bne LoopSprite           ; Loop 16 times (4 hardware sprites, 4 bytes each)
     rts
 .endproc
@@ -283,13 +287,29 @@ EnableRendering:
     lda #%00011110
     sta PPU_MASK             ; Set PPU_MASK bits to render the background
 
-LoopForever:
-    jmp LoopForever          ; Force an infinite execution loop
+GameLoop:    
+    jsr ReadControllers
+
+    lda IsDrawComplete
+    WaitForVBlank:
+      cmp IsDrawComplete
+      beq WaitForVBlank
+    lda #0
+    sta IsDrawComplete
+
+    inc CountGameLoop
+
+    jmp GameLoop
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; NMI interrupt handler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 NMI:
+    PUSH_REGS                ; Macro to save register values by pushing them to the stack
+
+    inc CountVBlank
+
     inc Frame                ; Frame++
 
 OAMStartDMACopy:             ; DMA copy of OAM data from RAM to PPU
@@ -316,9 +336,29 @@ NewAttribsCheck:
       jsr DrawNewAttribs
     :
 
+SetPPUNoScroll:
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
+
+EnablePPUSprite0:
+    lda #%10010000
+    sta PPU_CTRL
+    lda #%00011110
+    sta PPU_MASK
+
+WaitForNoSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    bne WaitForNoSprite0
+
+WaitForSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    beq WaitForSprite0
+
 ScrollBackground:
     inc XScroll              ; XScroll++
-
     lda XScroll
     bne :+                   ; Check if XScroll rolled back to 0, then we swap nametables!
       lda CurrNametable
@@ -345,6 +385,13 @@ SetGameClock:
     lda #0
     sta Frame
 :
+
+SetDrawComplete:
+    lda #1
+    sta IsDrawComplete
+
+    PULL_REGS
+
     rti                      ; Return from interrupt
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -539,6 +586,9 @@ AttributeData:
 ;; The OAM is organized in sets of 4 bytes per tile.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 SpriteData:
+;      Y   tile#  attributes   X
+.byte $27,  $70,  %00100001,  $6  ; Sprite-0 used to split the screen
+
 ;      Y   tile#  attributes   X
 .byte $A6,  $60,  %00000000,  $70 ; $200   _______________
 .byte $A6,  $61,  %00000000,  $78 ; $204   \  o o o o o  /   <-- Ship (4 tiles)

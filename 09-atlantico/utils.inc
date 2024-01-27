@@ -16,3 +16,21 @@
     lda val
     sta PPU_DATA             ; Send value to PPU register at $2007
 .endmacro
+
+.macro PUSH_REGS
+    pha                      ; Push A to the stack
+    txa
+    pha                      ; Push X to the stack
+    tya
+    pha                      ; Push Y to the stack
+    php                      ; Push Processor Status flags to the stack
+.endmacro
+
+.macro PULL_REGS
+    plp                      ; Restore the status flags from the stack
+    pla                      ; Restore the old value of Y from the stack
+    tay                      
+    pla                      ; Restore the old value of X from the stack
+    tax                      
+    pla                      ; Pull A from the stack
+.endmacro

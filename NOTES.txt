@@ -1,6 +1,21 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001010:
+     - Course section 13: Split Screen
+        - Enabled splitting of the nametable by using the "sprite-0-hit" bit
+          of PPU_STATUS. Splitting the nametable into a non-scrolling
+          status bar at the top and a scrolling game background.
+        - Seperated game logic from NMI and moved it into the main loop
+          GameLoop.
+        - Created a IsDrawComplete variable  that is set at the end of NMI to 
+          make sure the GameLoop is only run once per frame.
+        - Implemented storing of A, X, Y registers and P (the status flags)
+          into the stack at the beginning of NMI and retrieving and setting
+          the values back into A, X, Y and P at the end of NMI.
+          This is to not mess up the values in the middle of the GameLoop
+          when an NMI is triggered.
+        (Completed section)
  - 00001001:
      - Course section 13: Scrolling Background
         - Implemented dynamic loading of scrolling color attribute data
@@ -797,5 +812,76 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Acceleration -> Velocity -> Position:
    Acceleration is change in velocity per unit of time.
    Velocity is change in position per unit of time.
-   
+
+ - If we want to display a status bar at the top of the screen we can store
+   the status bar tiles in a nametable and split the nametable into
+   two parts. The top part being non-scrolling and containing the status bar,
+   and the lower part of the nametable being used to store the scrolling
+   game background. To declare the point of the split we can use bit 7
+   "sprite-0-hit" of the PPU_STATUS. "sprite-0-hit" starts with the value 0
+   each frame and becomes 1 after "sprite-0" (the very first sprite stored in
+   the PPU OAM) has been rendered. So to declare which point on the
+   screen we want to split the nametable we'll simply place the sprite-0
+   at that point and toggle the background scrolling setting on or off
+   according to the "sprite-0-hit" bit of the PPU_STATUS.
+
+                                   [NAMETABLE]
+                            ------------------------
+     [STATUS  BAR]         |                        |
+    (NON-SCROLLING) --------> SCORE: 200  TIME:055  |
+                           |                        |
+             SPRITE-0 ------>[S0]-------------------
+            (PPU  OAM)     |                        |
+                           |                        |
+                           |                        |
+         GAME BACKGROUND --->                       |
+           (SCROLLING)     |                        |
+                           |                        |
+                           |                        |
+                           |                        |
+                            ------------------------
+
+
+
+
+
+
+                  VERTICAL SCROLLING:
+                                       
+#------ NAMETABLE 0  -----#------ NAMETABLE 1  -----#                                       
+ ------------------------- -------------------------  
+|             I           |           I             |
+|             I                       I             |
+|             I           |           I             |
+|             I                       I             |
+|             I -->       |           I -->         |
+|             I                       I             |
+|             I           |           I             |
+|             I                       I             |
+|             I           |           I             |
+ ------------------------- -------------------------
+              #------ TV SCREEN ------#                         
+
+
+ - We'll create a buffer at memory address $7000 to change background tiles
+   in the nametable. Format of entries in buffer:
+
+   / A single byte
+  05 |  20 00 | 0 | 70 71 51 12 12 | FOLLOWED BY ANOTHER ENTRY | ETC. | ENDS WHEN LENGTH IS SET TO 0
+  |       |     |         |
+  |       |     |    5 bytes of data
+  |       |  Increment mode (0:1;1:32)
+  |  PPU address (hi-byte/lo-byte)
+ Length (how many tiles to change)
+
+
+
+
+
+
+
+
+
+
+
 
