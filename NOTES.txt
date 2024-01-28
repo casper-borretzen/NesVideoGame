@@ -1,6 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001011:
+     - Coruse section 14: Adding Game Object
+        - Added a new struct: Actor, that stores type, position and velocity
+          for a game object. And added accompanying ActorType enum. And added
+          ActorsArray that reserves space in memory to store a certain number
+          of actors defined by a constant called MAX_ACTORS.
+        - Added a subroutine to add actors.
  - 00001010:
      - Course section 13: Split Screen
         - Enabled splitting of the nametable by using the "sprite-0-hit" bit
@@ -275,6 +282,14 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Assembling, running and cleaning (deleting assembled files) can be done
    with a Makefile.
 
+ - ca65 Users Guide: https://cc65.github.io/doc/ca65.html
+ 
+ - ca65 supports:
+    - macros
+    - enums
+    - structs
+    - .sizeof()
+    - and more.
 
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 ASSEMBLY CODE:
@@ -310,7 +325,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    of the new 16-bit number. If the original sign-bit was 0, we fill all the 
    left new bits with 0. If the original sign-bit was 1, we fill all the 
    new left bits with 1.
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 INSTRUCTIONS (OPCODES):
@@ -601,6 +615,119 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                 | A | B |
                  --- ---
 
+                         VERTICAL SCROLLING:
+                                              
+       #------ NAMETABLE 0  -----#------ NAMETABLE 1  -----#                                       
+        ------------------------- -------------------------  
+       |             I           |           I             |
+       |             I                       I             |
+       |             I           |           I             |
+       |             I                       I             |
+       |             I -->       |           I -->         |
+       |             I                       I             |
+       |             I           |           I             |
+       |             I                       I             |
+       |             I           |           I             |
+        ------------------------- -------------------------
+                     #------ TV SCREEN ------#                         
+ 
+
+ - Dynamic loading of a scrolling background can be implemented by defining
+   an XScroll variable that increments to scroll the background.
+   XScroll indicates the current position of the viewport on the active
+   nametable. When XScroll reaches the end it resets back to 0 and we
+   switch active nametable from 1->0 or 0->1.
+   As XScroll increments we dynamically load column by column of tiles into
+   the nametable that is off-screen, so that there is always a column of
+   background tiles ready to appear as we keep scrolling.
+   Loading of tile columns into the inactive nametable happends every
+   8 pixels (a tile is 8x8). And color attribute data for the off-screen
+   nametable is loaded every 32 pixels (since a tile on the color attribute
+   grid covers 4 tiles (8x4=32)).
+  
+
+                             Column data is dynamically loaded from
+                               CHR-ROM to VRAM (nametable) every
+                                 time XScroll is increased by 8
+ BackgroundData:                           ---------->
+ .byte $13,$13,$13,$13,$21, ... ----------------------------------+
+ .byte $13,$13,$75,$14,$22, ... ----------------------------------|-+
+ .byte $13,$13,$6e,$13,$20, ... ----------------------------------|-|-+
+                                                                  | | | 
+                                                      OFF-SCREEN  | | | 
+                            [TV SCREEN]               NAMETABLE \ | | | 
+                      32 COLUMNS ALREADY LOADED                   1 2 3 4 5...
+  --------------------------------------------------------------- -----------
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                          VERTICALLY                           I | | | | | |
+ I                          SCROLLING                            I | | | | | |
+ I                          BACKGROUND                           I | | | | | |
+ I                                                               I | | | | | |
+ I                           XScroll++                           I | | | | | |
+ I                       --> --> --> -->                         I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+  --------------------------------------------------------------- -----------
+                                                                  1       2...
+ AttributeData:                                                   |       |
+ .byte $ff,$aa,$aa,$aa,$9a, ... ----------------------------------+       |
+ .byte $ff,$aa,$aa,$aa,$5a, ... ------------------------------------------+
+                                           ---------->
+                           Color attribute data is dynamically loaded
+                             from CHR-ROM to VRAM (nametable) every
+                               time XScroll is increased by 32
+
+
+ - If we want to display a status bar at the top of the screen we can store
+   the status bar tiles in a nametable and split the nametable into
+   two parts. The top part being non-scrolling and containing the status bar,
+   and the lower part of the nametable being used to store the scrolling
+   game background. To declare the point of the split we can use bit 7
+   "sprite-0-hit" of the PPU_STATUS. "sprite-0-hit" starts with the value 0
+   each frame and becomes 1 after "sprite-0" (the very first sprite stored in
+   the PPU OAM) has been rendered. So to declare which point on the
+   screen we want to split the nametable we'll simply place the sprite-0
+   at that point and toggle the background scrolling setting on or off
+   according to the "sprite-0-hit" bit of the PPU_STATUS.
+
+                                   [NAMETABLE]
+                            ------------------------
+     [STATUS  BAR]         |                        |
+    (NON-SCROLLING) --------> SCORE: 200  TIME:055  |
+                           |                        |
+             SPRITE-0 ------>[S0]-------------------
+            (PPU  OAM)     |                        |
+                           |                        |
+                           |                        |
+         GAME BACKGROUND --->                       |
+           (SCROLLING)     |                        |
+                           |                        |
+                           |                        |
+                           |                        |
+                            ------------------------
+
+          Changing the text in the status bar:
+          We'll create a buffer at memory address $7000 to change background tiles
+          in the nametable. Format of entries in buffer:
+       
+          / A single byte
+         05 |  20 00 | 0 | 70 71 51 12 12 | FOLLOWED BY ANOTHER ENTRY | ETC. | ENDS WHEN LENGTH IS SET TO 0
+         |       |     |         |
+         |       |     |    5 bytes of data
+         |       |  Increment mode (0:1;1:32)
+         |  PPU address (hi-byte/lo-byte)
+        Length (how many tiles to change)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -798,6 +925,10 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
  - NROM template: https://github.com/pinobatch/nrom-template
 
+ - Morphcat Games:
+    - How we fit an NES game into 40 Kilobytes (Micro Mages): https://youtu.be/ZWQ0591PAxM
+    - Talk & Play / Sprite Recycling (Micro Mages): https://www.kickstarter.com/projects/morphcat-games/triple-jump-a-platformer-multi-cartridge-for-the-nes/posts/3913486
+
  - NesHacker videos:
     - NES Hardware Explained:         https://youtu.be/mMq4FFUnBPc
     - NES Architecture Explained:     https://youtu.be/PwZEBE66an0
@@ -812,76 +943,5 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Acceleration -> Velocity -> Position:
    Acceleration is change in velocity per unit of time.
    Velocity is change in position per unit of time.
-
- - If we want to display a status bar at the top of the screen we can store
-   the status bar tiles in a nametable and split the nametable into
-   two parts. The top part being non-scrolling and containing the status bar,
-   and the lower part of the nametable being used to store the scrolling
-   game background. To declare the point of the split we can use bit 7
-   "sprite-0-hit" of the PPU_STATUS. "sprite-0-hit" starts with the value 0
-   each frame and becomes 1 after "sprite-0" (the very first sprite stored in
-   the PPU OAM) has been rendered. So to declare which point on the
-   screen we want to split the nametable we'll simply place the sprite-0
-   at that point and toggle the background scrolling setting on or off
-   according to the "sprite-0-hit" bit of the PPU_STATUS.
-
-                                   [NAMETABLE]
-                            ------------------------
-     [STATUS  BAR]         |                        |
-    (NON-SCROLLING) --------> SCORE: 200  TIME:055  |
-                           |                        |
-             SPRITE-0 ------>[S0]-------------------
-            (PPU  OAM)     |                        |
-                           |                        |
-                           |                        |
-         GAME BACKGROUND --->                       |
-           (SCROLLING)     |                        |
-                           |                        |
-                           |                        |
-                           |                        |
-                            ------------------------
-
-
-
-
-
-
-                  VERTICAL SCROLLING:
-                                       
-#------ NAMETABLE 0  -----#------ NAMETABLE 1  -----#                                       
- ------------------------- -------------------------  
-|             I           |           I             |
-|             I                       I             |
-|             I           |           I             |
-|             I                       I             |
-|             I -->       |           I -->         |
-|             I                       I             |
-|             I           |           I             |
-|             I                       I             |
-|             I           |           I             |
- ------------------------- -------------------------
-              #------ TV SCREEN ------#                         
-
-
- - We'll create a buffer at memory address $7000 to change background tiles
-   in the nametable. Format of entries in buffer:
-
-   / A single byte
-  05 |  20 00 | 0 | 70 71 51 12 12 | FOLLOWED BY ANOTHER ENTRY | ETC. | ENDS WHEN LENGTH IS SET TO 0
-  |       |     |         |
-  |       |     |    5 bytes of data
-  |       |  Increment mode (0:1;1:32)
-  |  PPU address (hi-byte/lo-byte)
- Length (how many tiles to change)
-
-
-
-
-
-
-
-
-
-
 
 

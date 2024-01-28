@@ -1,12 +1,10 @@
 .include "consts.inc"
 .include "header.inc"
+.include "actor.inc"
 .include "reset.inc"
 .include "utils.inc"
 
 .segment "ZEROPAGE"
-CountGameLoop:  .res 1
-CountVBlank:    .res 1
-
 Buttons:        .res 1       ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
 
 XPos:           .res 2       ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
@@ -25,6 +23,13 @@ CurrNametable:  .res 1       ; Store the current starting nametable (0 or 1)
 Column:         .res 1       ; Stores the column (of tiles) we are in the level
 NewColAddr:     .res 2       ; The destination address of the new column in PPU
 SourceAddr:     .res 2       ; The source address in ROM of the new column tiles
+
+ActorsArray:    .res MAX_ACTORS * .sizeof(Actor)
+ParamType:      .res 1
+ParamXPos:      .res 1
+ParamYPos:      .res 1
+ParamXVel:      .res 1
+ParamYVel:      .res 1
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -61,20 +66,6 @@ LoopButtons:
     cpy #32                  ; Is Y equal to 32?
     bne :-                   ; Not yet, keep looping
     rts                      ; Return from subroutine
-.endproc
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Subroutine to load 16 bytes into OAM-RAM starting at $0200
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-.proc LoadSprites
-    ldx #0
-LoopSprite:
-    lda SpriteData,x         ; We fetch bytes from the SpriteData lookup table
-    sta $0200,x              ; We store the bytes starting at OAM address $0200
-    inx                      ; X++
-    cpx #20
-    bne LoopSprite           ; Loop 16 times (4 hardware sprites, 4 bytes each)
-    rts
 .endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -207,6 +198,41 @@ LoopSprite:
         :
     rts
 .endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to add new actor to the array in the first empty slot found
+;; Params = ParamType, ParamXPos, ParamYPos, ParamXVel, ParamYVel
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc AddNewActor
+    ldx #0                             ; X = 0
+  ArrayLoop:
+    cpx #MAX_ACTORS * .sizeof(Actor)   ; Reached maximum number of actors allowed in the
+    beq EndRoutine                     ; Then we skip and don't add a new actor
+    lda ActorsArray+Actor::Type,x
+    cmp #ActorType::NULL               ; If the actor type of this array position is NULL
+    beq AddNewActorToArray             ; Then we found an empty slot, proceed to add actor to position [x]
+  NextActor:
+    txa
+    clc
+    adc #.sizeof(Actor)                ; Otherwise, we offset to check the next actor in the array
+    tax                                ; X += sizeof(Actor)
+    jmp ArrayLoop
+
+  AddNewActorToArray:                  ; Here we add a new actor at index [x] of the array
+    lda ParamType                      ; Fetch parameter "actor type" from RAM
+    sta ActorsArray+Actor::Type,x
+    lda ParamXPos                      ; Fetch parameter "actor position X" from RAM
+    sta ActorsArray+Actor::XPos,x
+    lda ParamYPos                      ; Fetch parameter "actor position Y" from RAM
+    sta ActorsArray+Actor::YPos,x
+    lda ParamXVel                      ; Fetch parameter "actor velocity X" from RAM
+    sta ActorsArray+Actor::XVel,x
+    lda ParamYVel                      ; Fetch parameter "actor velocity Y" from RAM
+    sta ActorsArray+Actor::YVel,x
+EndRoutine:
+    rts
+.endproc
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reset handler (called when the NES resets or powers on)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -220,10 +246,37 @@ InitVariables:
     sta XScroll              ; XScroll = 0
     sta Column               ; Column = 0
     sta CurrNametable        ; CurrNametable = 0
+    lda #113
+    sta XPos
+    lda #165
+    sta YPos
 
 Main:
     jsr LoadPalette          ; Call LoadPalette subroutine to load 32 colors into our palette
-    jsr LoadSprites          ; Call LoadSprites subroutine to load all sprites into OAM-RAM
+
+AddSprite0:
+    lda #ActorType::SPRITE0
+    sta ParamType
+    lda #0
+    sta ParamXPos
+    lda #27
+    sta ParamYPos
+    lda #0
+    sta ParamXVel
+    sta ParamYVel
+    jsr AddNewActor
+
+AddPlayer:
+    lda #ActorType::PLAYER
+    sta ParamType
+    lda XPos
+    sta ParamXPos
+    lda YPos
+    sta ParamYPos
+    lda #0
+    sta ParamXVel
+    sta ParamYVel
+    jsr AddNewActor
 
 InitBackgroundTiles:
     lda #1
@@ -290,14 +343,32 @@ EnableRendering:
 GameLoop:    
     jsr ReadControllers
 
-    lda IsDrawComplete
+CheckAButton:
+    lda Buttons
+    and #BUTTON_A
+    beq :+
+        lda #ActorType::MISSILE
+        sta ParamType
+        lda XPos
+        sta ParamXPos
+        lda YPos
+        sta ParamYPos
+        lda #0
+        sta ParamXVel
+        lda #1
+        sta ParamYVel
+        jsr AddNewActor
+    :
+
+    ;jsr SpawnActors
+    ;jsr UpdateActors
+    ;jsr RenderActors
+
     WaitForVBlank:
-      cmp IsDrawComplete
+      lda IsDrawComplete
       beq WaitForVBlank
     lda #0
     sta IsDrawComplete
-
-    inc CountGameLoop
 
     jmp GameLoop
 
@@ -307,8 +378,6 @@ GameLoop:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 NMI:
     PUSH_REGS                ; Macro to save register values by pushing them to the stack
-
-    inc CountVBlank
 
     inc Frame                ; Frame++
 
@@ -336,26 +405,26 @@ NewAttribsCheck:
       jsr DrawNewAttribs
     :
 
-SetPPUNoScroll:
-    lda #0
-    sta PPU_SCROLL
-    sta PPU_SCROLL
-
-EnablePPUSprite0:
-    lda #%10010000
-    sta PPU_CTRL
-    lda #%00011110
-    sta PPU_MASK
-
-WaitForNoSprite0:
-    lda PPU_STATUS
-    and #%01000000
-    bne WaitForNoSprite0
-
-WaitForSprite0:
-    lda PPU_STATUS
-    and #%01000000
-    beq WaitForSprite0
+;SetPPUNoScroll:
+;    lda #0
+;    sta PPU_SCROLL
+;    sta PPU_SCROLL
+;
+;EnablePPUSprite0:
+;    lda #%10010000
+;    sta PPU_CTRL
+;    lda #%00011110
+;    sta PPU_MASK
+;
+;WaitForNoSprite0:
+;    lda PPU_STATUS
+;    and #%01000000
+;    bne WaitForNoSprite0
+;
+;WaitForSprite0:
+;    lda PPU_STATUS
+;    and #%01000000
+;    beq WaitForSprite0
 
 ScrollBackground:
     inc XScroll              ; XScroll++
@@ -579,21 +648,6 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$59,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; This is the OAM sprite attribute data data we will use in our game.
-;; We have only one big metasprite that is composed of 2x4 hardware sprites.
-;; The OAM is organized in sets of 4 bytes per tile.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-SpriteData:
-;      Y   tile#  attributes   X
-.byte $27,  $70,  %00100001,  $6  ; Sprite-0 used to split the screen
-
-;      Y   tile#  attributes   X
-.byte $A6,  $60,  %00000000,  $70 ; $200   _______________
-.byte $A6,  $61,  %00000000,  $78 ; $204   \  o o o o o  /   <-- Ship (4 tiles)
-.byte $A6,  $62,  %00000000,  $80 ; $208    \___________/
-.byte $A6,  $63,  %00000000,  $88 ; $20C
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Here we add the CHR-ROM data, included from an external .CHR file
