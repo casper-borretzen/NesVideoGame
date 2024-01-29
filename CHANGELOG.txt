@@ -2,6 +2,12 @@
 // VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - 00001111:
+    - Course section 16: Collision Detection
+        - Added subroutines to check for collision between a point (on the 
+          missile) and a bounding box (on the airplane)
+        (Completed section)
+
  - 00001110:
      - Course section 15: Generating Random Numbers
         - Added subroutine for 16-bit Galois linear feedback shift register

@@ -36,10 +36,16 @@ ParamYPos:      .res 1
 ParamTileNum:   .res 1
 ParamNumTiles:  .res 1
 ParamAttribs:   .res 1
+ParamRectX1:    .res 1
+ParamRectX2:    .res 1
+ParamRectY1:    .res 1
+ParamRectY2:    .res 1
 
 PrevOAMCount:   .res 1       ; Store the previous number of bytes that were sent to the OAM
 
 Seed:           .res 2       ; Initialize 16-bit seed to any value except 0
+
+Collision:      .res 1       ; Flag to indicate if collision happened or not
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -342,6 +348,81 @@ EndRoutine:
 .endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to loop all the enemy actors checking for a collision with missile
+;; Params = ParamXPos, ParamYPos (are the X and Y position of the missile)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc CheckEnemyCollision
+    txa
+    pha
+    
+    ldx #0
+    stx Collision
+
+  EnemiesCollisionLoop:
+    cpx #MAX_ACTORS * .sizeof(Actor)
+    beq FinishCollisionCheck
+      lda ActorsArray+Actor::Type,x
+      cmp #ActorType::AIRPLANE
+      bne NextEnemy
+
+      ;; LOAD BOUNDING BOX X1, Y1, X2 and Y2
+      lda ActorsArray+Actor::XPos,x
+      sta ParamRectX1
+      lda ActorsArray+Actor::YPos,x
+      sta ParamRectY1
+
+      lda ActorsArray+Actor::XPos,x
+      clc
+      adc #22
+      sta ParamRectX2
+
+      lda ActorsArray+Actor::YPos,x
+      clc
+      adc #8
+      sta ParamRectY2
+
+      jsr IsPointInsideBoundingBox
+
+      lda Collision
+      beq NextEnemy
+        lda #ActorType::NULL
+        sta ActorsArray+Actor::Type,x
+        jmp FinishCollisionCheck
+  
+  NextEnemy:
+    txa
+    clc
+    adc #.sizeof(Actor)
+    tax
+    jmp EnemiesCollisionLoop
+
+FinishCollisionCheck:
+    pla
+    tax
+    rts
+
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to check if a point (ParamX, ParamY) is inside a bounding box ParamRectX1/ParamRectY1, ParamRextX2/ParamRectY2
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc IsPointInsideBoundingBox
+    lda ParamXPos
+    cmp ParamRectX1
+    bcc :+
+      cmp ParamRectX2
+      bcs :+
+        lda ParamYPos
+        cmp ParamRectY1
+        bcc :+
+          cmp ParamRectY2
+          bcs :+
+            lda #1
+            sta Collision
+:   rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutine to update all the actors
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .proc UpdateActors
@@ -359,6 +440,24 @@ EndRoutine:
           lda #ActorType::NULL
           sta ActorsArray+Actor::Type,x
         SkipMissile:
+      CheckCollision:
+        lda ActorsArray+Actor::XPos,x
+        clc
+        adc #3
+        sta ParamXPos
+
+        lda ActorsArray+Actor::YPos,x
+        clc
+        adc #1
+        sta ParamYPos
+
+        jsr CheckEnemyCollision
+        lda Collision
+        beq NoCollisionFound
+          lda #ActorType::NULL
+          sta ActorsArray+Actor::Type,x
+        NoCollisionFound:
+
         jmp NextActor
       :
       

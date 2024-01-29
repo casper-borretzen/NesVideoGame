@@ -477,6 +477,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    240 visible scanlines + 21 scanlines of VBLANK + 1 scanline of pre-VBLANK
  - VRAM has to be updated during the period of VBLANK
  - The PPU triggers an NMI interrupt to the CPU every time a new VBLANK starts.
+ - Updating VRAM (background) and OAM (sprites) has to be done during
+   the period of VBLANK. So we'll do this when NMI is triggered.
  - HBLANK is the time it takes from the beam to go from right to left again
    after each scanline. The PPU handles this for us.
  - Each scanline lasts 341 PPU clock-cycles. This is the same as
@@ -867,6 +869,22 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
   - $4016 is the address for the 1st controller    \  B
   - $4017 is the address for the 2nd controller     A
 
+  - Reading input from controller 1 and storing the values in the Buttons variable:
+    .proc ReadControllers
+        lda #1                   ; A = 1
+        sta Buttons              ; Buttons = 1
+        sta #$4016               ; Set Latch=1 to begin 'Input'/collection mode
+        lsr                      ; A = 0
+        sta #$4016               ; Set Latch=0 to begin 'Output' mode
+    LoopButtons:
+        lda #$4016               ; This reads a bit from the controller data line and inverts its value,
+                                 ; And also sends a signal to the Clock line to shift the bits
+        lsr                      ; We shift-right to place that 1-bit we just read into the Carry flag
+        rol Buttons              ; Rotate bits left, placing the Carry value into the 1st bit of 'Buttons' in RAM
+        bcc LoopButtons          ; Loop until Carry is set (from that initial 1 we loaded inside Buttons)
+        rts
+    .endproc
+
 ///////////////////////////////////////////////////////////////////////////////
 // LINKS / RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
@@ -953,7 +971,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
       \_ The "random" bit we are generating
 
    Period = 2 to the power of (number of bits) 4 - 1
-   Period is the amount of number we can generate before the cycle starts
+   Period is the amount of numbers we can generate before the cycle starts
    repeating. We have to subtract one since 0000 is not a possible value.
 
    If we have more than 4 bits we might use more than 2 taps.
@@ -962,9 +980,59 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    The period is then = 2 to the power of 16 - 1 = 65535
    (65 535 iterations before we start repeating the pattern from start)
 
+   Example code for 16-bit Galois linear feedback shift register:
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   ;; Returns a random 8.bit number inside A (0-255), clobbers Y (0).
+   ;; Requires a 2-byte value on the zero-page called "Seed".
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   ;; This is an 16-bit Galois linear feedback shift register with polynomial $0039.
+   ;; The sequence of numbers it generates will repeat after 65535 calls.
+   ;; Execution time is an average of 125 cycles (excluding jsr and rts)
+   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   
+    Seed:           .res 2      ; 16-bit seed
+    lda #$10
+    sta Seed+1
+    sta Seed+0                  ; Initialize the Seed with any value different than 0
+   .proc GetRandomNumber
+       ldy #8                   ; Loop counter (generate 8 bits)
+       lda Seed+0
+   :   asl                      ; Shift the register
+       rol Seed+1
+       bcc :+
+         eor #$39               ; Apply XOR feedback when a 1 bit is shifted out
+       :
+       dey
+       bne :--
+       sta Seed+0               ; Saves the value in A into the Seed
+       cmp #0                   ; Set flags
+       rts
+   .endproc
+
  - To make the PRNG (Pseudo Random Number Generator) less predictable we can
    add a timer at the start of the game and count how long it takes for the
    player to press the start button. We can use the result of the timer
    as the initial seed instead of hardcoding a value.
    
+ - On modern hardware collision check might be implemented very simple with
+   AABB (Axis-Align Bounding Box) collision checking.
+   But most NES games does not perform a full box-box collision check, it uses
+   too much processing power and cheaper sollutions are usually preferred.
+   One way to do a cheaper collision check is to pick special points of our
+   first object and check those against a certain region of the second object.
+
+                Region of 2nd object
+               /
+   X1-----------+
+   |            |
+   |            |
+   |     P      |
+   +-----|------X2
+         |  
+   Collision point of 1st object
+   (e.g. tip of missile, tip of sword, etc.)
+
+   We check if point P is over X2, under X1, to the right of X1
+   to the left of X2. If all of this is true then we have
+   a collision!
+
 
