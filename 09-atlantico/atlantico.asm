@@ -14,6 +14,9 @@ YPos:           .res 1       ; Player Y 16-bit position (8.8 fixed-point): hi+lo
 XVel:           .res 1       ; Player X (signed) velocity (in pixels per 256 frames)
 YVel:           .res 1       ; Player Y (signed) velocity (in pixels per 256 frames)
 
+PrevSubmarine:  .res 1       ; Time in seconds since last time a submarine was spawned
+PrevAirplane:   .res 1       ; Time in seconds since last time an airplane was spawned
+
 Frame:          .res 1       ; Counts frames (0 to 255 and repeats)
 IsDrawComplete: .res 1       ; Flag to indicate when VBlank is done drawing
 Clock60:        .res 1       ; Counter that increments per second (60 frames)
@@ -33,6 +36,8 @@ ParamYPos:      .res 1
 ParamTileNum:   .res 1
 ParamNumTiles:  .res 1
 ParamAttribs:   .res 1
+
+PrevOAMCount:   .res 1       ; Store the previous number of bytes that were sent to the OAM
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -232,6 +237,52 @@ EndRoutine:
     rts
 .endproc
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to spawn actors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc SpawnActors
+  SpawnSubmarine:
+    lda Clock60                        ; Submarine are added in intervals of 3 seconds
+    sec
+    sbc PrevSubmarine
+    cmp #3                             ; Only add a new submarine if the difference in time from the previous
+    bne :+
+      lda #ActorType::SUBMARINE
+      sta ParamType                    ; Load parameter for the actor type
+      lda #223
+      sta ParamXPos                    ; Load the parameter for actor position X
+      lda #185
+      sta ParamYPos                    ; Load the parameter for actor position Y
+
+      jsr AddNewActor                  ; Call the subroutine to add new actor
+
+      lda Clock60
+      sta PrevSubmarine                ; Save the current Clock60 as the submarine last spawn time
+    :
+
+  SpawnAirplane:
+    lda Clock60                        ; Submarine are added in intervals of 3 seconds
+    sec
+    sbc PrevAirplane
+    cmp #2                             ; Only add a new submarine if the difference in time from the previous
+    bne :+
+      lda #ActorType::AIRPLANE
+      sta ParamType                    ; Load parameter for the actor type
+      lda #235
+      sta ParamXPos                    ; Load the parameter for actor position X
+      lda #60
+      sta ParamYPos                    ; Load the parameter for actor position Y
+
+      jsr AddNewActor                  ; Call the subroutine to add new actor
+
+      lda Clock60
+      sta PrevAirplane                ; Save the current Clock60 as the submarine last spawn time
+    :
+
+    rts
+.endproc
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutine to update all the actors
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -243,9 +294,39 @@ EndRoutine:
       cmp #ActorType::MISSILE
       bne :+
         lda ActorsArray+Actor::YPos,x
-        clc
+        sec
         sbc #1                         ; Decrement Y position of missiles of 1
         sta ActorsArray+Actor::YPos,x
+        bcs SkipMissile
+          lda #ActorType::NULL
+          sta ActorsArray+Actor::Type,x
+        SkipMissile:
+        jmp NextActor
+      :
+      
+      cmp #ActorType::SUBMARINE
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sec
+        sbc #1                         ; Decrement X position of submarine of 1
+        sta ActorsArray+Actor::XPos,x
+        bcs SkipSubmarine
+          lda #ActorType::NULL
+          sta ActorsArray+Actor::Type,x
+        SkipSubmarine:
+        jmp NextActor
+      :
+      
+      cmp #ActorType::AIRPLANE
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sec
+        sbc #1                         ; Decrement X position of submarine of 1
+        sta ActorsArray+Actor::XPos,x
+        bcs SkipAirplane
+          lda #ActorType::NULL
+          sta ActorsArray+Actor::Type,x
+        SkipAirplane:
         jmp NextActor
       :
 
@@ -256,6 +337,7 @@ EndRoutine:
         tax
         cmp #MAX_ACTORS * .sizeof(Actor)
         bne ActorsLoop
+    
     rts
 .endproc
 
@@ -287,7 +369,7 @@ EndRoutine:
         sta ParamNumTiles
         lda #%00100000
         sta ParamAttribs
-        jsr DrawSprite                 ; Draw player sprite
+        jsr DrawSprite                 ; Draw sprite0
         jmp NextActor
       :
 
@@ -319,13 +401,39 @@ EndRoutine:
         sta ParamNumTiles
         lda #%00000001
         sta ParamAttribs
-        jsr DrawSprite                 ; Draw player sprite
+        jsr DrawSprite                 ; Draw missile sprite
         jmp NextActor
       :
 
       cmp #ActorType::SUBMARINE
       bne :+
-        ; TODO: Do thing here
+        lda ActorsArray+Actor::XPos,x
+        sta ParamXPos
+        lda ActorsArray+Actor::YPos,x
+        sta ParamYPos
+        lda #$04
+        sta ParamTileNum
+        lda #4
+        sta ParamNumTiles
+        lda #%00100000
+        sta ParamAttribs
+        jsr DrawSprite                 ; Draw submarine sprite
+        jmp NextActor
+      :
+
+      cmp #ActorType::AIRPLANE
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sta ParamXPos
+        lda ActorsArray+Actor::YPos,x
+        sta ParamYPos
+        lda #$10
+        sta ParamTileNum
+        lda #3
+        sta ParamNumTiles
+        lda #%00000011
+        sta ParamAttribs
+        jsr DrawSprite                 ; Draw airplane sprite
         jmp NextActor
       :
 
@@ -335,7 +443,31 @@ EndRoutine:
         adc #.sizeof(Actor)
         tax
         cmp #MAX_ACTORS * .sizeof(Actor)
-        bne ActorsLoop
+        beq :+
+          jmp ActorsLoop
+        :
+
+    tya
+    pha
+    
+    LoopTrailingTiles:
+      cpy PrevOAMCount
+      bcs:+
+        lda #$FF
+        sta (SprPtr),y
+        iny
+        sta (SprPtr),y
+        iny
+        sta (SprPtr),y
+        iny
+        sta (SprPtr),y
+        iny
+        jmp LoopTrailingTiles
+      :
+
+    pla                                ; Save the previous value of Y into PrevOAMCount
+    sta PrevOAMCount                   ; This is the total number of bytes that we just sent to the OAM
+
     rts
 .endproc
 
@@ -508,7 +640,7 @@ CheckAButton:
         jsr AddNewActor
     :
 
-    ;jsr SpawnActors
+    jsr SpawnActors
     jsr UpdateActors
     jsr RenderActors
 

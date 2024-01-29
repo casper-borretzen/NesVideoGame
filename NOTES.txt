@@ -1,6 +1,16 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001101:
+     - Course section 14: Adding Game Objects
+        - Added code so that the missile actor is deleted (set to NULL)
+          when exiting the screen.
+        - Added code for deleting sprites for NULL actors.
+        - Added spawning, updating postion and rendering of submarines.
+          Submarines spawn every 3 seconds.
+        - Added airplanes that are similar to submarines and spawn every
+          3 seconds.
+        (Completed section)
  - 00001100:
      - Course section 14: Adding Game Objects
         - Added subroutine RenderActors to loop through and render
@@ -319,11 +329,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    sta Ptr+1   ; Storing the hi-byte to the pointer Ptr
    (Ptr)       ; Referencing the pointer Ptr
    (Ptr),y     ; Referencing the pointer Ptr with a offset Y (only the register Y can be used to offset a pointer)
- - Multiplication and division by 2,4,6,8,16 etc. can by done with bit shifting
-   (ASL) Shifting left is equivalent to multiplying by 2.
-   Example: (27) 00011011 * 2 = (54) 00110110
-   (LSR) Shifting right is equivalent to dividing by 2.
-   Example: (74) 01001010 / 2 = (37) 00100101
  - Two bytes can be combined to create a decimal number with the hi-byte
    representing the integer part and the lo-byte the fractional part of the number.
    16-bit number using 8.8 fixed-point math: hi-byte . lo-byte
@@ -406,8 +411,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
      ; AND can be used to mask bits
      ; Example:
-     ; STA #%11111111
-     ; AND #%00000101
+     ; STA #%00001111
+     ; AND #%01010101
      ; The result is 00000101
 
      ; AND can also be used to check for even/odd numbers, and to check
@@ -425,15 +430,15 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
      ; EOR can be used to flip bits
      ; Example:
-     ; STA #%00000011
-     ; EOR #%00000001
-     ; The result is 00000010
+     ; STA #%00000110
+     ; EOR #%00000011
+     ; The result is 00000101
 
      ; ORA can be used to set a particular bit to true
      ; Example:
-     ; STA #%00001100
-     ; ORA #%00000011
-     ; The result is 00001111
+     ; STA #%00011100
+     ; ORA #%00000111
+     ; The result is 00011111
 
      ; ORA + EOR can be used to set a partical bit to false
      ; Example:
@@ -457,6 +462,20 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      CMP  ; compare accumulator
      CPX  ; compare X register
      CPY  ; compare Y register
+
+     ; Relative vs. Absolute Jumps:
+     ; JMP is an absolute jump and can jump to anywhere.
+     ; Branching (BEQ, BMI, BCS, etc.) is a relative jump that uses a byte 
+     ; to define the relative target position.
+     ; It can maximum jump 127 lines up or down.
+     ; To use branch instructions with absolute jump we'll nest a JMP
+     ; instruction inside a branch.
+     ; Example, here's the original code:
+     ;   BNE JumpDestination
+     ; To replace it with an absolute jump we'll change it to:
+     ;   BEQ :+
+     ;     JMP JumpDestination
+     ;   :
 
      ; The CMP instruction is used to compare a value from memory with the one 
      ; in the accumulator. It sets the N(egative), Z(ero) and C(arry) flags
@@ -487,6 +506,12 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ; ROL: Rotate Left, moves all the bits one step left.
      ;      The leftmost bit moves over to the rightmost side.
      ;      1 0 1 0 1 1 1 1 -> 0 1 0 1 1 1 1 1
+
+     ; Multiplication and division by 2,4,6,8,16 etc. can by done with bit shifting
+     ; (ASL) Shifting left is equivalent to multiplying by 2.
+     ; Example: (27) 00011011 * 2 = (54) 00110110
+     ; (LSR) Shifting right is equivalent to dividing by 2.
+     ; Example: (74) 01001010 / 2 = (37) 00100101
 
  - Transfer Instructions:
      TAX  ; transfer A to X
@@ -856,6 +881,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                                time XScroll is increased by 32
 
 ///////////////////////////////////////////////////////////////////////////////
+
  - If we want to display a status bar at the top of the screen we can store
    the status bar tiles in a nametable and split the nametable into
    two parts. The top part being non-scrolling and containing the status bar,
@@ -936,7 +962,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 ///////////////////////////////////////////////////////////////////////////////
 // CONTROLLER:
 ///////////////////////////////////////////////////////////////////////////////
-
             
       -----------------------       READ/WRITE      
      |                       |  <--- [LATCH]--->  7 6 5 4 3 2 1 0      
@@ -984,4 +1009,8 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Acceleration -> Velocity -> Position:
    Acceleration is change in velocity per unit of time.
    Velocity is change in position per unit of time.
+
+
+
+
 
