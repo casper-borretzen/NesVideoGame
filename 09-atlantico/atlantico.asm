@@ -6,9 +6,10 @@
 
 .segment "ZEROPAGE"
 Buttons:        .res 1       ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
+PrevButtons:    .res 1       ; Previously pressed buttons
 
-XPos:           .res 2       ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
-YPos:           .res 2       ; Player Y 16-bit position (8.8 fixed-point): hi+lo/256px
+XPos:           .res 1       ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
+YPos:           .res 1       ; Player Y 16-bit position (8.8 fixed-point): hi+lo/256px
 
 XVel:           .res 1       ; Player X (signed) velocity (in pixels per 256 frames)
 YVel:           .res 1       ; Player Y (signed) velocity (in pixels per 256 frames)
@@ -17,6 +18,7 @@ Frame:          .res 1       ; Counts frames (0 to 255 and repeats)
 IsDrawComplete: .res 1       ; Flag to indicate when VBlank is done drawing
 Clock60:        .res 1       ; Counter that increments per second (60 frames)
 BgPtr:          .res 2       ; Pointer to background address - 16bits (lo,hi)
+SprPtr:         .res 2       ; Pointer to the sprite address - 16bits (lo,hi)
 
 XScroll:        .res 1       ; Store the horizontal scroll position
 CurrNametable:  .res 1       ; Store the current starting nametable (0 or 1)
@@ -28,8 +30,9 @@ ActorsArray:    .res MAX_ACTORS * .sizeof(Actor)
 ParamType:      .res 1
 ParamXPos:      .res 1
 ParamYPos:      .res 1
-ParamXVel:      .res 1
-ParamYVel:      .res 1
+ParamTileNum:   .res 1
+ParamNumTiles:  .res 1
+ParamAttribs:   .res 1
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -201,7 +204,7 @@ LoopButtons:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutine to add new actor to the array in the first empty slot found
-;; Params = ParamType, ParamXPos, ParamYPos, ParamXVel, ParamYVel
+;; Params = ParamType, ParamXPos, ParamYPos
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .proc AddNewActor
     ldx #0                             ; X = 0
@@ -225,13 +228,159 @@ LoopButtons:
     sta ActorsArray+Actor::XPos,x
     lda ParamYPos                      ; Fetch parameter "actor position Y" from RAM
     sta ActorsArray+Actor::YPos,x
-    lda ParamXVel                      ; Fetch parameter "actor velocity X" from RAM
-    sta ActorsArray+Actor::XVel,x
-    lda ParamYVel                      ; Fetch parameter "actor velocity Y" from RAM
-    sta ActorsArray+Actor::YVel,x
 EndRoutine:
     rts
 .endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to update all the actors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc UpdateActors
+    ldx #0
+    ActorsLoop:
+      lda ActorsArray+Actor::Type,x
+
+      cmp #ActorType::MISSILE
+      bne :+
+        lda ActorsArray+Actor::YPos,x
+        clc
+        sbc #1                         ; Decrement Y position of missiles of 1
+        sta ActorsArray+Actor::YPos,x
+        jmp NextActor
+      :
+
+      NextActor:
+        txa
+        clc
+        adc #.sizeof(Actor)
+        tax
+        cmp #MAX_ACTORS * .sizeof(Actor)
+        bne ActorsLoop
+    rts
+.endproc
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to render all the actors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc RenderActors
+    ;; Load SprPtr to point to $0200
+    lda #$02
+    sta SprPtr+1
+    lda #$00
+    sta SprPtr                         ; Point SprPtr to $0200
+
+    ldy #0                             ; Count how many tiles we are sending
+    ldx #0                             ; Counts how many actors we are looping
+    ActorsLoop:
+      lda ActorsArray+Actor::Type,x
+      
+      cmp #ActorType::SPRITE0
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sta ParamXPos
+        lda ActorsArray+Actor::YPos,x
+        sta ParamYPos
+        lda #$70
+        sta ParamTileNum
+        lda #1
+        sta ParamNumTiles
+        lda #%00100000
+        sta ParamAttribs
+        jsr DrawSprite                 ; Draw player sprite
+        jmp NextActor
+      :
+
+      cmp #ActorType::PLAYER
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sta ParamXPos
+        lda ActorsArray+Actor::YPos,x
+        sta ParamYPos
+        lda #$60
+        sta ParamTileNum
+        lda #4
+        sta ParamNumTiles
+        lda #%00000000
+        sta ParamAttribs
+        jsr DrawSprite                 ; Draw player sprite
+        jmp NextActor
+      :
+
+      cmp #ActorType::MISSILE
+      bne :+
+        lda ActorsArray+Actor::XPos,x
+        sta ParamXPos
+        lda ActorsArray+Actor::YPos,x
+        sta ParamYPos
+        lda #$50
+        sta ParamTileNum
+        lda #1
+        sta ParamNumTiles
+        lda #%00000001
+        sta ParamAttribs
+        jsr DrawSprite                 ; Draw player sprite
+        jmp NextActor
+      :
+
+      cmp #ActorType::SUBMARINE
+      bne :+
+        ; TODO: Do thing here
+        jmp NextActor
+      :
+
+      NextActor:
+        txa
+        clc
+        adc #.sizeof(Actor)
+        tax
+        cmp #MAX_ACTORS * .sizeof(Actor)
+        bne ActorsLoop
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Routine to loop "NumTiles" times, sending bytes to the OAM-RAM
+;; Params = ParamXPos, ParamyPos, ParamTileNum, ParamAttribs, ParamNumTiles
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc DrawSprite
+    txa
+    pha                      ; Save the value of the X register
+
+    ldx #0
+    TileLoop:
+      lda ParamYPos          ; Send Y position to the OAM 
+      sta (SprPtr),y
+      iny
+
+      lda ParamTileNum       ; Send the Tile # to the OAM
+      sta (SprPtr),y
+      inc ParamTileNum       ; ParamTileNum++
+      iny
+
+      lda ParamAttribs       ; Send the attributes to the OAM
+      sta (SprPtr),y
+      iny
+
+      lda ParamXPos          ; Send X position to the OAM 
+      sta (SprPtr),y
+      
+      clc
+      adc #8
+      sta ParamXPos          ; ParamXPos += 8
+
+      iny
+      
+      inx                    ; X++
+      cpx ParamNumTiles      ; Loop until X == NumTiles
+      bne TileLoop
+
+    pla
+    tax                      ; Restore the value of the X register
+
+    rts 
+.endproc
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reset handler (called when the NES resets or powers on)
@@ -262,8 +411,6 @@ AddSprite0:
     lda #27
     sta ParamYPos
     lda #0
-    sta ParamXVel
-    sta ParamYVel
     jsr AddNewActor
 
 AddPlayer:
@@ -274,8 +421,6 @@ AddPlayer:
     lda YPos
     sta ParamYPos
     lda #0
-    sta ParamXVel
-    sta ParamYVel
     jsr AddNewActor
 
 InitBackgroundTiles:
@@ -341,28 +486,31 @@ EnableRendering:
     sta PPU_MASK             ; Set PPU_MASK bits to render the background
 
 GameLoop:    
+    lda Buttons
+    sta PrevButtons          ; Stores the previously pressed buttons
+
     jsr ReadControllers
 
 CheckAButton:
     lda Buttons
     and #BUTTON_A
     beq :+
+      lda Buttons
+      and #BUTTON_A
+      cmp PrevButtons
+      beq:+
         lda #ActorType::MISSILE
         sta ParamType
         lda XPos
         sta ParamXPos
         lda YPos
         sta ParamYPos
-        lda #0
-        sta ParamXVel
-        lda #1
-        sta ParamYVel
         jsr AddNewActor
     :
 
     ;jsr SpawnActors
-    ;jsr UpdateActors
-    ;jsr RenderActors
+    jsr UpdateActors
+    jsr RenderActors
 
     WaitForVBlank:
       lda IsDrawComplete
@@ -405,26 +553,26 @@ NewAttribsCheck:
       jsr DrawNewAttribs
     :
 
-;SetPPUNoScroll:
-;    lda #0
-;    sta PPU_SCROLL
-;    sta PPU_SCROLL
-;
-;EnablePPUSprite0:
-;    lda #%10010000
-;    sta PPU_CTRL
-;    lda #%00011110
-;    sta PPU_MASK
-;
-;WaitForNoSprite0:
-;    lda PPU_STATUS
-;    and #%01000000
-;    bne WaitForNoSprite0
-;
-;WaitForSprite0:
-;    lda PPU_STATUS
-;    and #%01000000
-;    beq WaitForSprite0
+SetPPUNoScroll:
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
+
+EnablePPUSprite0:
+    lda #%10010000
+    sta PPU_CTRL
+    lda #%00011110
+    sta PPU_MASK
+
+WaitForNoSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    bne WaitForNoSprite0
+
+WaitForSprite0:
+    lda PPU_STATUS
+    and #%01000000
+    beq WaitForSprite0
 
 ScrollBackground:
     inc XScroll              ; XScroll++

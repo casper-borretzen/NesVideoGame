@@ -1,8 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GIT VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
+ - 00001100:
+     - Course section 14: Adding Game Objects
+        - Added subroutine RenderActors to loop through and render
+          all the game objects (actors).
+        - Added subroutine DrawSprite to send the sprite information for
+          the actors to OAM-RAM.
+        - Added subroutine UpdateActors to update position or state of actors
+        - Added missiles that can be shot by pressing A
+        - Limited A button press, so the player has to release the button
+          and press again to shoot another missile.
  - 00001011:
-     - Coruse section 14: Adding Game Object
+     - Course section 14: Adding Game Objects
         - Added a new struct: Actor, that stores type, position and velocity
           for a game object. And added accompanying ActorType enum. And added
           ActorsArray that reserves space in memory to store a certain number
@@ -91,7 +101,6 @@
      - Course section completed: 05 - The 6502 Processor
      - Course section completed: 06 - 6502 Assembler
      - Course section completed: 07 - Intro to 6502 Assembly
-
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -284,12 +293,12 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
  - ca65 Users Guide: https://cc65.github.io/doc/ca65.html
  
- - ca65 supports:
+ - ca65 is very powerful and supports:
     - macros
     - enums
     - structs
     - .sizeof()
-    - and more.
+    - and more..
 
 ///////////////////////////////////////////////////////////////////////////////
 // 6502 ASSEMBLY CODE:
@@ -345,18 +354,22 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      STX  ; store the X register
      STY  ; store the Y register
  
- - Loading / storing modes:
-     Immediate mode:               
-     LDA #80    ; Loads the A register with the literal decimal value 80
+     ; Loading / storing modes:
+
+     ; Immediate mode:               
+     ; LDA #80    Loads the A register with the literal decimal value 80
      
-     Absolute (zero-page) mode:    
-     LDA $80    ; Loads the A register with the value inside memore address $80
+     ; Absolute (zero-page) mode:    
+     ; LDA $80    Loads the A register with the value inside memore address $80
      
-     Immediate mode:               
-     LDA #$80   ; Loads the A register with the literal hexadecimal number $80
+     ; Immediate mode:               
+     ; LDA #$80   Loads the A register with the literal hexadecimal number $80
      
-     Absolute (zero-page) indexed: 
-     STA $80,X  ; Store the value of A into memory address ($80 + X)
+     ; Absolute (zero-page) indexed: 
+     ; STA $80,X  Store the value of A into memory address ($80 + X)
+
+     ; Loading sets Zero flag if the loaded number is zero
+     ; and Negative flag if the loaded number is negative (the leftmost bit is set)
 
 - Arithmetic instructions (addition, subtract):
      ADC  ; add to the accumulator (with carry)
@@ -386,12 +399,20 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
      ; AND: The result of a logical AND is only true if both inputs are true.
      ;      A bitwise AND can be used to mask certain bits of a byte.
-     ; ORA: The result of a logical OR (ORA) is true if at least
-     ;      one of the inputs are true.
      ; EOR: An Exclusive-OR is similar to logical OR, with the exception that
      ;     it is false when both inputs are true.
+     ; ORA: The result of a logical OR (ORA) is true if at least
+     ;      one of the inputs are true.
 
+     ; AND can be used to mask bits
+     ; Example:
+     ; STA #%11111111
+     ; AND #%00000101
+     ; The result is 00000101
 
+     ; AND can also be used to check for even/odd numbers, and to check
+     ; if a number is divisible by 2/4/8/16/32/64
+     ; Examples:
      ; AND #%00000001 - Can be used to mask all but the rightmost bit, if the
      ; result is true it means the original number is an
      ; even number and divisible by two.
@@ -402,7 +423,24 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ; AND #%00001111 - Divisible by 16
      ; et cetera...
 
-     ; EOR #1 can be used to flip a bit (0 -> 1 or 1 -> 0)
+     ; EOR can be used to flip bits
+     ; Example:
+     ; STA #%00000011
+     ; EOR #%00000001
+     ; The result is 00000010
+
+     ; ORA can be used to set a particular bit to true
+     ; Example:
+     ; STA #%00001100
+     ; ORA #%00000011
+     ; The result is 00001111
+
+     ; ORA + EOR can be used to set a partical bit to false
+     ; Example:
+     ; STA #%11101011
+     ; ORA #%00111100
+     ; EOR #%00111100
+     ; The result is 11000011
 
  - Jump, Branch, Compare Instructions:
      JMP  ; jump to another location     GOTO
@@ -528,208 +566,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    113.6 CPU clock cycles. 1 CPU cycle = 3 PPU cycles.
 
 ///////////////////////////////////////////////////////////////////////////////
-// PATTERN TABLES AND NAMETABLES:
-///////////////////////////////////////////////////////////////////////////////
-
-           [8x8  TILE]
-            16  BYTES         [PATTERN TABLE]           [CHR-ROM]
-         0 0 1 1 2 2 3 3        4096  BYTES             8192 BYTES   
-         0 0 1 1 2 2 3 3      ---------------       ------------------
-         0 0 1 1 2 2 3 3     |   256 TILES   |     | 2 PATTERN TABLES |
-         0 0 1 1 2 2 3 3 --> | STORED IN ONE | --> |    STORED ON     |
-         0 0 1 1 2 2 3 3     | PATTERN TABLE |     |    CARTRIDGE     |
-         0 0 1 1 2 2 3 3      ---------------       ------------------
-         0 0 1 1 2 2 3 3                                  | 
-         0 0 1 1 2 2 3 3                                  |
-          \                                               |
-          COLOR INDEX (0-3)                               |
-              2 BITS                                      |
-                                                          |
-                          [NAMETABLE]                     |
-                           1024 BYTES                     |
-                    -----------------------               |
-                   |       960 BYTES:      |    REFERENCE |
-                   | STORES 960 REFERENCES |  <-----------+
-                   |   TO TILES SELECTED   |
-                   |  FROM THE BACKGROUND  |          [VRAM]
-                   |     PATTERN TABLE     |        2048 BYTES
-                   |    FORMING A 32x30    |       ------------
-                   |   GRID TO FILL THE    |      |  STORES 2  |
-                   |     ENTIRE SCREEN     |      | NAMETABLES |
-                    -----------------------   --> | CONTAINING |
-                   |       64 BYTES:       |      | TILES AND  |
-                   | STORES 64 REFERENCES  |      | COLOR DATA |
-                   |   TO COLOR PALETTES   |       ------------
-                   |   SELECTED FROM THE   |
-                   |   BACKGROUND COLOR    |
-                   |  PALETTE SET FORMING  |    REFERENCE
-                   |  A 8x8 GRID TO COLOR  |  <-----------+
-                   |   ALL THE TILES IN    |              |
-                   |     GROUPS OF 4       |              |
-                    -----------------------               |
-                                                          |
-                                                          |
-         [SET OF COLOR PALETTES]                        [WRAM]
-                16 BYTES                               32 BYTES
-    [01 02 03 04] ----------> PALETTE #1       --------------------------
-       [05 06 07 08] -------> PALETTE #2      | 2 SETS OF COLOR PALETTES |
-          [09 10 11 12] ----> PALETTE #3  --> |  ONE SET FOR BACKGROUND  |
-             [13 14 15 16] -> PALETTE #4      |  AND ONE SET FOR SPRITES |
-                \                              -------------------------- 
-                 1 BYTE REPRESENTING          
-                    A SINGLE COLOR
-
- - A vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
-   but more pattern tables can be added if the cartridge has a mapper.
-   A pattern table contains 256 tiles. A tile can be 8x8 or 8x16.
-   Each "pixel" on a tile contains a value from 0-3, representing an index
-   to reference a color from the selected a color palette.
- - VRAM contains two nametables used to draw the background.
-   Each nametable needs to store tiles (from the pattern tables)
-   and color data. VRAM has 2048 bytes of storage capacity that 
-   is divided into 1024 bytes assigned for each of the two nametables.
-   Tiles are stored in the 32x30 tile grid and colors are stored
-   in the 8x8 attribute grid. Each entry in both the tile grid and
-   the attribute grid needs 1 byte of storage space.
-   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
- - The color palette contains two sets of 4 color palettes.
-   One set for painting the background tiles and one set for painting 
-   the sprites. Each set contain 4 palettes and each individual palette
-   contains 4 colors represented as a value between 0-255.
-   The first color in every indvidual palette is the background color.
- - The pattern tables can be thought of as different brushes 
-   while the nametable is the canvas in which we paint the final result.
-
- - Nametable mirroring is used to enable scrolling backgrounds:
-
-            VERTICAL MIRRORING:         HORIZONTAL MIRRORING:
-            USED FOR GAMES THAT         USED FOR GAMES THAT
-            SCROLL HORIZONTALLY         SCROLL VERTICALLY
-                 --- ---                
-                | A | B |                 ---    M    ---
-                 --- ---                 | A | <-I-> | A |
-                  |   |                   ---    R    ---
-               M I R R O R               | B | <-R-> | B |
-                  |   |                   ---    O    --- 
-                 --- ---                         R        
-                | A | B |
-                 --- ---
-
-                         VERTICAL SCROLLING:
-                                              
-       #------ NAMETABLE 0  -----#------ NAMETABLE 1  -----#                                       
-        ------------------------- -------------------------  
-       |             I           |           I             |
-       |             I                       I             |
-       |             I           |           I             |
-       |             I                       I             |
-       |             I -->       |           I -->         |
-       |             I                       I             |
-       |             I           |           I             |
-       |             I                       I             |
-       |             I           |           I             |
-        ------------------------- -------------------------
-                     #------ TV SCREEN ------#                         
- 
-
- - Dynamic loading of a scrolling background can be implemented by defining
-   an XScroll variable that increments to scroll the background.
-   XScroll indicates the current position of the viewport on the active
-   nametable. When XScroll reaches the end it resets back to 0 and we
-   switch active nametable from 1->0 or 0->1.
-   As XScroll increments we dynamically load column by column of tiles into
-   the nametable that is off-screen, so that there is always a column of
-   background tiles ready to appear as we keep scrolling.
-   Loading of tile columns into the inactive nametable happends every
-   8 pixels (a tile is 8x8). And color attribute data for the off-screen
-   nametable is loaded every 32 pixels (since a tile on the color attribute
-   grid covers 4 tiles (8x4=32)).
-  
-
-                             Column data is dynamically loaded from
-                               CHR-ROM to VRAM (nametable) every
-                                 time XScroll is increased by 8
- BackgroundData:                           ---------->
- .byte $13,$13,$13,$13,$21, ... ----------------------------------+
- .byte $13,$13,$75,$14,$22, ... ----------------------------------|-+
- .byte $13,$13,$6e,$13,$20, ... ----------------------------------|-|-+
-                                                                  | | | 
-                                                      OFF-SCREEN  | | | 
-                            [TV SCREEN]               NAMETABLE \ | | | 
-                      32 COLUMNS ALREADY LOADED                   1 2 3 4 5...
-  --------------------------------------------------------------- -----------
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                          VERTICALLY                           I | | | | | |
- I                          SCROLLING                            I | | | | | |
- I                          BACKGROUND                           I | | | | | |
- I                                                               I | | | | | |
- I                           XScroll++                           I | | | | | |
- I                       --> --> --> -->                         I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
- I                                                               I | | | | | |
-  --------------------------------------------------------------- -----------
-                                                                  1       2...
- AttributeData:                                                   |       |
- .byte $ff,$aa,$aa,$aa,$9a, ... ----------------------------------+       |
- .byte $ff,$aa,$aa,$aa,$5a, ... ------------------------------------------+
-                                           ---------->
-                           Color attribute data is dynamically loaded
-                             from CHR-ROM to VRAM (nametable) every
-                               time XScroll is increased by 32
-
-
- - If we want to display a status bar at the top of the screen we can store
-   the status bar tiles in a nametable and split the nametable into
-   two parts. The top part being non-scrolling and containing the status bar,
-   and the lower part of the nametable being used to store the scrolling
-   game background. To declare the point of the split we can use bit 7
-   "sprite-0-hit" of the PPU_STATUS. "sprite-0-hit" starts with the value 0
-   each frame and becomes 1 after "sprite-0" (the very first sprite stored in
-   the PPU OAM) has been rendered. So to declare which point on the
-   screen we want to split the nametable we'll simply place the sprite-0
-   at that point and toggle the background scrolling setting on or off
-   according to the "sprite-0-hit" bit of the PPU_STATUS.
-
-                                   [NAMETABLE]
-                            ------------------------
-     [STATUS  BAR]         |                        |
-    (NON-SCROLLING) --------> SCORE: 200  TIME:055  |
-                           |                        |
-             SPRITE-0 ------>[S0]-------------------
-            (PPU  OAM)     |                        |
-                           |                        |
-                           |                        |
-         GAME BACKGROUND --->                       |
-           (SCROLLING)     |                        |
-                           |                        |
-                           |                        |
-                           |                        |
-                            ------------------------
-
-          Changing the text in the status bar:
-          We'll create a buffer at memory address $7000 to change background tiles
-          in the nametable. Format of entries in buffer:
-       
-          / A single byte
-         05 |  20 00 | 0 | 70 71 51 12 12 | FOLLOWED BY ANOTHER ENTRY | ETC. | ENDS WHEN LENGTH IS SET TO 0
-         |       |     |         |
-         |       |     |    5 bytes of data
-         |       |  Increment mode (0:1;1:32)
-         |  PPU address (hi-byte/lo-byte)
-        Length (how many tiles to change)
-
-///////////////////////////////////////////////////////////////////////////////
 
                                 COLOR PALETTE
                                 -------------
@@ -755,9 +591,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                               $2007:   PPU_DATA
                               -----------------
 
-
-///////////////////////////////////////////////////////////////////////////////
-// PPU REGISTERS:
 ///////////////////////////////////////////////////////////////////////////////
 
    $2000 : PPU_CTRL   :  7 6 5 4 3 2 1 0
@@ -825,6 +658,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    a 8-bit lo-byte and stores the combined values as a 16-bit memory address.
  - When PPU_STATUS is read (e.g. BIT PPU_STATUS) the PPU_ADDR latch is reset.
  - When storing a byte in PPU_DATA the PPU_ADDR is automatically incremented.
+   According to PPU_CTRL bit 2, either increment by 1 or increment by 32.
 
 //////////////////////////////////////////////////////////////////////////////
 // PPU MEMORY MAP:
@@ -832,22 +666,22 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
            $0000 ------- #-----------------# --------
                          | PATTERN TABLE 0 | CHR-ROM
-                         |                 |
+                         |                 | 4KB
            $1000 ------- #-----------------# --------
                          | PATTERN TABLE 1 | CHR-ROM
-                         |                 |
+                         |                 | 4KB
            $2000 ------- #-----------------# --------
                          |  NAME TABLE 0   | 1KB
-                         |  + ATTRIBUTES   |
+                         |  + ATTRIBUTES   | 
            $2400 ------- #-----------------# --------
                          |  NAME TABLE 1   | 1KB
-                         |  + ATTRIBUTES   |
+                         |  + ATTRIBUTES   | 
            $2800 ------- #-----------------# --------
                          |  NAME TABLE 2   | 1KB
-                         |  + ATTRIBUTES   |
+                         |  + ATTRIBUTES   | 
            $2C00 ------- #-----------------# --------
                          |  NAME TABLE 3   | 1KB
-                         |  + ATTRIBUTES   |
+                         |  + ATTRIBUTES   | 
            $3000 ------- #-----------------# --------
                          |     MIRRORS     |
                          |   $2000-$2EFF   |
@@ -857,7 +691,211 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                          | PALETTE SPRITES | 16 bytes
                          #-----------------#
               
-              
+///////////////////////////////////////////////////////////////////////////////
+// PATTERN TABLES AND NAMETABLES:
+///////////////////////////////////////////////////////////////////////////////
+
+           [8x8  TILE]
+            16  BYTES         [PATTERN TABLE]           [CHR-ROM]
+         0 0 1 1 2 2 3 3        4096  BYTES             8192 BYTES   
+         0 0 1 1 2 2 3 3      ---------------       ------------------
+         0 0 1 1 2 2 3 3     |   256 TILES   |     | 2 PATTERN TABLES |
+         0 0 1 1 2 2 3 3 --> | STORED IN ONE | --> |    STORED ON     |
+         0 0 1 1 2 2 3 3     | PATTERN TABLE |     |    CARTRIDGE     |
+         0 0 1 1 2 2 3 3      ---------------       ------------------
+         0 0 1 1 2 2 3 3                                  | 
+         0 0 1 1 2 2 3 3                                  |
+          \                                               |
+          COLOR INDEX (0-3)                               |
+              2 BITS                                      |
+                                                          |
+                          [NAMETABLE]                     |
+                           1024 BYTES                     |
+                    -----------------------               |
+                   |       960 BYTES:      |    REFERENCE |
+                   | STORES 960 REFERENCES |  <-----------+
+                   |   TO TILES SELECTED   |
+                   |  FROM THE BACKGROUND  |          [VRAM]
+                   |     PATTERN TABLE     |        2048 BYTES
+                   |    FORMING A 32x30    |       ------------
+                   |   GRID TO FILL THE    |      |  STORES 2  |
+                   |     ENTIRE SCREEN     |      | NAMETABLES |
+                    -----------------------   --> | CONTAINING |
+                   |       64 BYTES:       |      | TILES AND  |
+                   | STORES 64 REFERENCES  |      | COLOR DATA |
+                   |   TO COLOR PALETTES   |       ------------
+                   |   SELECTED FROM THE   |
+                   |   BACKGROUND COLOR    |
+                   |  PALETTE SET FORMING  |    REFERENCE
+                   |  A 8x8 GRID TO COLOR  |  <-----------+
+                   |   ALL THE TILES IN    |              |
+                   |     GROUPS OF 4       |              |
+                    -----------------------               |
+                                                          |
+                                                          |
+         [SET OF COLOR PALETTES]                        [WRAM]
+                16 BYTES                               32 BYTES
+        [1 2 3 4] ----------> PALETTE #1       --------------------------
+           [1 2 3 4] -------> PALETTE #2      | 2 SETS OF COLOR PALETTES |
+              [1 2 3 4] ----> PALETTE #3  --> |  ONE SET FOR BACKGROUND  |
+                 [1 2 3 4] -> PALETTE #4      |  AND ONE SET FOR SPRITES |
+                   \                           -------------------------- 
+                    1 BYTE REPRESENTING          
+                       A SINGLE COLOR
+
+ - A vanilla cartridge has two pattern tables (0: Sprites and 1: Background)
+   but more pattern tables can be added if the cartridge has a mapper.
+   A pattern table contains 256 tiles. A tile can be 8x8 or 8x16.
+   Each pixel on a tile contains a value from 0-3, representing an index
+   to reference a color from the selected color palette.
+ - VRAM contains two nametables used to draw the background.
+   Each nametable needs to store tiles (from the pattern tables)
+   and color data. VRAM has 2048 bytes of storage capacity that 
+   is divided into 1024 bytes assigned for each of the two nametables.
+   Tiles are stored in the 32x30 tile grid and colors are stored
+   in the 8x8 attribute grid. Each entry in both the tile grid and
+   the attribute grid needs 1 byte of storage space.
+   A nametable contains 960 tiles + 64 color attributes, totalling 1024 bytes.
+ - The color palette contains two sets of 4 color palettes.
+   One set for painting the background tiles and one set for painting 
+   the sprites. Each set contain 4 palettes and each individual palette
+   contains 4 colors represented as a value between 0-255.
+   The first color in every indvidual palette is the background color.
+ - The pattern tables can be thought of as different brushes 
+   while the nametable is the canvas in which we paint the final result.
+
+///////////////////////////////////////////////////////////////////////////////
+
+ - Nametable mirroring is used to enable scrolling backgrounds:
+
+            VERTICAL MIRRORING:         HORIZONTAL MIRRORING:
+            USED FOR GAMES THAT         USED FOR GAMES THAT
+            SCROLL HORIZONTALLY         SCROLL VERTICALLY
+                 --- ---                
+                | A | B |                 ---    M    ---
+                 --- ---                 | A | <-I-> | A |
+                  |   |                   ---    R    ---
+               M I R R O R               | B | <-R-> | B |
+                  |   |                   ---    O    --- 
+                 --- ---                         R        
+                | A | B |
+                 --- ---
+
+                       HORIZONTAL SCROLLING:
+                                              
+       #------ NAMETABLE 0  -----#------ NAMETABLE 1  -----#                                       
+        ------------------------- -------------------------  
+       |             I           |           I             |
+       |             I                       I             |
+       |             I           |           I             |
+       |             I                       I             |
+       |             I -->       |           I -->         |
+       |             I                       I             |
+       |             I           |           I             |
+       |             I                       I             |
+       |             I           |           I             |
+        ------------------------- -------------------------
+                     #------ TV SCREEN ------#                         
+ 
+///////////////////////////////////////////////////////////////////////////////
+
+ - Dynamic loading of a scrolling background can be implemented by defining
+   an XScroll variable that increments to scroll the background.
+   XScroll indicates the current position of the viewport on the active
+   nametable. When XScroll reaches the end it resets back to 0 and we
+   switch active nametable from 1->0 or 0->1.
+   As XScroll increments we dynamically load column by column of tiles into
+   the nametable that is off-screen, so that there is always a column of
+   background tiles ready to appear as we keep scrolling.
+   Loading of tile columns into the inactive nametable happends every
+   8 pixels (a tile is 8x8). And color attribute data for the off-screen
+   nametable is loaded every 32 pixels (since a tile on the color attribute
+   grid covers 4 tiles (8x4=32)).
+  
+
+                             Column data is dynamically loaded from
+                               CHR-ROM to VRAM (nametable) every
+                                 time XScroll is increased by 8
+ BackgroundData:                           ---------->
+ .byte $13,$13,$13,$13,$21, ... ----------------------------------+
+ .byte $13,$13,$75,$14,$22, ... ----------------------------------|-+
+ .byte $13,$13,$6e,$13,$20, ... ----------------------------------|-|-+
+                                                                  | | | 
+                                                      OFF-SCREEN  | | | 
+                            [TV SCREEN]               NAMETABLE \ | | | 
+                      32 COLUMNS ALREADY LOADED                   1 2 3 4 5...
+  --------------------------------------------------------------- -----------
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                          HORIZONTALLY                         I | | | | | |
+ I                          SCROLLING                            I | | | | | |
+ I                          BACKGROUND                           I | | | | | |
+ I                                                               I | | | | | |
+ I                           XScroll++                           I | | | | | |
+ I                       --> --> --> -->                         I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+ I                                                               I | | | | | |
+  --------------------------------------------------------------- -----------
+                                                                  1       2...
+ AttributeData:                                                   |       |
+ .byte $ff,$aa,$aa,$aa,$9a, ... ----------------------------------+       |
+ .byte $ff,$aa,$aa,$aa,$5a, ... ------------------------------------------+
+                                           ---------->
+                           Color attribute data is dynamically loaded
+                             from CHR-ROM to VRAM (nametable) every
+                               time XScroll is increased by 32
+
+///////////////////////////////////////////////////////////////////////////////
+ - If we want to display a status bar at the top of the screen we can store
+   the status bar tiles in a nametable and split the nametable into
+   two parts. The top part being non-scrolling and containing the status bar,
+   and the lower part of the nametable being used to store the scrolling
+   game background. To declare the point of the split we can use bit 7
+   "sprite-0-hit" of the PPU_STATUS. "sprite-0-hit" starts with the value 0
+   each frame and becomes 1 after "sprite-0" (the very first sprite stored in
+   the PPU OAM) has been rendered. So to declare which point on the
+   screen we want to split the nametable we'll simply place the sprite-0
+   at that point and toggle the background scrolling setting on or off
+   according to the "sprite-0-hit" bit of the PPU_STATUS.
+
+                                   [NAMETABLE]
+                            ------------------------
+     [STATUS  BAR]         |                        |
+    (NON-SCROLLING) --------> SCORE: 200  TIME:055  |
+                           |                        |
+             SPRITE-0 ------>[S0]-------------------
+            (PPU  OAM)     |                        |
+                           |                        |
+                           |                        |
+         GAME BACKGROUND --->                       |
+           (SCROLLING)     |                        |
+                           |                        |
+                           |                        |
+                           |                        |
+                            ------------------------
+
+          Changing the text in the status bar:
+          We'll create a buffer at memory address $7000 to change background tiles
+          in the nametable. Format of entries in buffer:
+       
+          / A single byte
+         05 |  20 00 | 0 | 70 71 51 12 12 | FOLLOWED BY ANOTHER ENTRY | ETC. | ENDS WHEN LENGTH IS SET TO 0
+         |       |     |         |
+         |       |     |    5 bytes of data
+         |       |  Increment mode (0:1;1:32)
+         |  PPU address (hi-byte/lo-byte)
+        Length (how many tiles to change)
+
 //////////////////////////////////////////////////////////////////////////////
 // SPRITES / PPU OAM:
 //////////////////////////////////////////////////////////////////////////////
@@ -874,13 +912,16 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    that dictates where and how sprites will be displayed.
  - The OAM has 256 bytes of storage capacity and can store information 
    of a total of 64 sprites selected from the sprite pattern table.
+
  - The OAM memory is implemented using dynamic memory instead of static memory.
    Dynamic memory decays very fast, so we need to store the OAM data in RAM
    and load the data from RAM to the PPU OAM memory every frame.
- - We write the OAM data to RAM (usually between $0200-$02FF)
- - We'll copy the contents from $0200-$02FF to the PPU OAM every frame (NMI).
- - We start the OAM copy by writing to the $4014 register. The NES implements
-   this OAM copy via DMA (direct memory access (very fast)).
+   Procedure:
+    - We write the OAM data to RAM (usually between $0200-$02FF)
+    - We'll copy the contents from $0200-$02FF to the PPU OAM every frame (NMI).
+    - We start the OAM copy by writing to the $4014 register. The NES implements
+      this OAM copy via DMA (direct memory access (very fast)).
+
  - Sprite attribute data in the OAM occupies 4 bytes:
  
       3 2 1 0
@@ -943,5 +984,4 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Acceleration -> Velocity -> Position:
    Acceleration is change in velocity per unit of time.
    Velocity is change in position per unit of time.
-
 
