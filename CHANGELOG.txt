@@ -1,0 +1,135 @@
+///////////////////////////////////////////////////////////////////////////////
+// VERSION HISTORY:
+///////////////////////////////////////////////////////////////////////////////
+
+ - 00001110:
+     - Course section 15: Generating Random Numbers
+        - Added subroutine for 16-bit Galois linear feedback shift register
+          for generating random numbers.
+        - Implemented the random number generator to spawn the airplanes
+          and the submarines at a random Y position (within a certain range).
+        (Completed section)
+
+ - 00001101:
+     - Course section 14: Adding Game Objects
+        - Added code so that the missile actor is deleted (set to NULL)
+          when exiting the screen.
+        - Added code for deleting sprites for NULL actors.
+        - Added spawning, updating postion and rendering of submarines.
+          Submarines spawn every 3 seconds.
+        - Added airplanes that are similar to submarines and spawn every
+          3 seconds.
+        (Completed section)
+
+ - 00001100:
+     - Course section 14: Adding Game Objects
+        - Added subroutine RenderActors to loop through and render
+          all the game objects (actors).
+        - Added subroutine DrawSprite to send the sprite information for
+          the actors to OAM-RAM.
+        - Added subroutine UpdateActors to update position or state of actors
+        - Added missiles that can be shot by pressing A
+        - Limited A button press, so the player has to release the button
+          and press again to shoot another missile.
+
+ - 00001011:
+     - Course section 14: Adding Game Objects
+        - Added a new struct: Actor, that stores type, position and velocity
+          for a game object. And added accompanying ActorType enum. And added
+          ActorsArray that reserves space in memory to store a certain number
+          of actors defined by a constant called MAX_ACTORS.
+        - Added a subroutine to add actors.
+
+ - 00001010:
+     - Course section 13: Split Screen
+        - Enabled splitting of the nametable by using the "sprite-0-hit" bit
+          of PPU_STATUS. Splitting the nametable into a non-scrolling
+          status bar at the top and a scrolling game background.
+        - Seperated game logic from NMI and moved it into the main loop
+          GameLoop.
+        - Created a IsDrawComplete variable  that is set at the end of NMI to 
+          make sure the GameLoop is only run once per frame.
+        - Implemented storing of A, X, Y registers and P (the status flags)
+          into the stack at the beginning of NMI and retrieving and setting
+          the values back into A, X, Y and P at the end of NMI.
+          This is to not mess up the values in the middle of the GameLoop
+          when an NMI is triggered.
+        (Completed section)
+
+ - 00001001:
+     - Course section 13: Scrolling Background
+        - Implemented dynamic loading of scrolling color attribute data
+          for the background
+        (Completed section)
+
+ - 00001000:
+     - Course section 13: Scrolling Background
+        - Implemented simple horizontally scrolling background
+        - Improved the scrolling background by swapping nametables when
+          reaching the end of the current one.
+        - Changed the project structure and moved from making simple examples
+          to working on a bigger game prototype "Atlantico" (09_atlantico)
+        - Implemented dynamic loading of scrolling background tiles.
+
+ - 00000111:
+     - Course section 12: Subpixel Movement
+        - Changed player position to use 16-bit 8.8 fixed-point math, 
+          affected by acceleration and velocity.
+        - Implemented signed velocity to support negative values.
+        - Added animation when moving
+        (Completed section)
+
+ - 00000110:
+     - Course section 11: Controller Input
+        - Implemented Buttons variable and subroutine to read button presses
+          and store them in the variable.
+        - Mapped directional button presses to move player sprite
+        - Changed the values for controller related operations to constants
+        (Completed section)
+
+ - 00000101:
+     - Course section 10: Sprites
+        - Added test sprite data(SpriteData), a subroutine for storing sprite 
+          data in RAM (LoadSprites) and instructions to update PPU OAM from RAM
+          every frame (on MNI (VBLANK)).
+        - Added hiding of unused sprites in OAM data initialization
+        - Implemented loading of background data and attributes from .nam file
+        - Added another test sprites. Now displaying two static test sprites.
+        (Completed section)
+
+ - 00000100:
+     - Course section 09: Background Graphics
+        - Loading of CHR background tiles for the first nametable
+        - Loading of attributes for the first nametable
+        - Created dynamic macros for PPU_SETADDR and PPU_SETDATA
+        - Added frame counter and seconds counter as variables in the zero page
+        - Frame counter increments on every vblank and seconds counter
+          increments when frame counter reaches 60
+        - Added pointer BgPtr for BackgroundData
+        - Made subroutine for looping through and loading all tiles and
+          attributes to the first nametable
+        - Made subroutine for drawing text (in drawtext.asm)
+        (Completed section)
+
+ - 00000011:
+     - Course section 08: NES Graphics
+        - Divided the code into multiple include (.inc) files
+        - Implemented loading of color palette
+        - Implemented the color palette loading as a subroutine "LoadPalette" 
+          that can be triggered with JSR LoadPalette
+        (Completed section)
+
+ - 00000010:
+     - Course section 08: NES Graphics
+        - Communicating with the PPU and rendering a solid color background (helloppu.asm)
+        - Added code for initializing the NES to a stable state
+
+ - 00000001:
+     - Course section completed: 01 - Introduction
+     - Course section completed: 02 - History & Early Years
+     - Course section completed: 03 - NES Hardware
+     - Course section completed: 04 - Binary & Hexadecimal
+     - Course section completed: 05 - The 6502 Processor
+     - Course section completed: 06 - 6502 Assembler
+     - Course section completed: 07 - Intro to 6502 Assembly
+

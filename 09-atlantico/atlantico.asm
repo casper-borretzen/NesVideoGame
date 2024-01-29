@@ -39,6 +39,8 @@ ParamAttribs:   .res 1
 
 PrevOAMCount:   .res 1       ; Store the previous number of bytes that were sent to the OAM
 
+Seed:           .res 2       ; Initialize 16-bit seed to any value except 0
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -59,6 +61,53 @@ LoopButtons:
     lsr                      ; We shift-right to place that 1-bit we just read into the Carry flag
     rol Buttons              ; Rotate bits left, placing the Carry value into the 1st bit of 'Buttons' in RAM
     bcc LoopButtons          ; Loop until Carry is set (from that initial 1 we loaded inside Buttons)
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Returns a random 8.bit number inside A (0-255), clobbers Y (0).
+;; Requires a 1-byte value on the zero-page called "Seed".
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; This is an 8-bit Galois LFSR with polynomial $1D.
+;; The sequence of numbers it generates will repeat after 255 calls.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;.proc GetRandomNumber8Bit
+;    ldy #8                   ; Loop counter (generate 8 bits)
+;    lda Seed
+;  
+;Loop8Times:
+;    asl                      ; Shift the register
+;    bcc :+
+;      eor #$1D               ; Apply XOR feedback when a 1 bit is shifted out
+;    :
+;    dey
+;    bne Loop8Times
+;
+;    sta Seed                 ; Saves the value in A into the Seed
+;    cmp #0                   ; Set flags
+;    rts
+;.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Returns a random 8.bit number inside A (0-255), clobbers Y (0).
+;; Requires a 2-byte value on the zero-page called "Seed".
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; This is an 16-bit Galois linear feedback shift register with polynomial $0039.
+;; The sequence of numbers it generates will repeat after 65535 calls.
+;; Execution time is an average of 125 cycles (excluding jsr and rts)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc GetRandomNumber
+    ldy #8                   ; Loop counter (generate 8 bits)
+    lda Seed+0
+:   asl                      ; Shift the register
+    rol Seed+1
+    bcc :+
+      eor #$39               ; Apply XOR feedback when a 1 bit is shifted out
+    :
+    dey
+    bne :--
+    sta Seed+0               ; Saves the value in A into the Seed
+    cmp #0                   ; Set flags
     rts
 .endproc
 
@@ -252,7 +301,12 @@ EndRoutine:
       sta ParamType                    ; Load parameter for the actor type
       lda #223
       sta ParamXPos                    ; Load the parameter for actor position X
-      lda #185
+      jsr GetRandomNumber
+      lsr
+      lsr
+      lsr
+      clc
+      adc #180
       sta ParamYPos                    ; Load the parameter for actor position Y
 
       jsr AddNewActor                  ; Call the subroutine to add new actor
@@ -271,7 +325,11 @@ EndRoutine:
       sta ParamType                    ; Load parameter for the actor type
       lda #235
       sta ParamXPos                    ; Load the parameter for actor position X
-      lda #60
+      jsr GetRandomNumber
+      lsr
+      lsr
+      clc
+      adc #35
       sta ParamYPos                    ; Load the parameter for actor position Y
 
       jsr AddNewActor                  ; Call the subroutine to add new actor
@@ -531,6 +589,10 @@ InitVariables:
     sta XPos
     lda #165
     sta YPos
+
+    lda #$10
+    sta Seed+1
+    sta Seed+0               ; Initialize the Seed with any value different than 0
 
 Main:
     jsr LoadPalette          ; Call LoadPalette subroutine to load 32 colors into our palette
