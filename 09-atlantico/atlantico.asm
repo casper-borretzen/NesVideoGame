@@ -20,8 +20,10 @@ PrevAirplane:   .res 1       ; Time in seconds since last time an airplane was s
 Frame:          .res 1       ; Counts frames (0 to 255 and repeats)
 IsDrawComplete: .res 1       ; Flag to indicate when VBlank is done drawing
 Clock60:        .res 1       ; Counter that increments per second (60 frames)
+
 BgPtr:          .res 2       ; Pointer to background address - 16bits (lo,hi)
 SprPtr:         .res 2       ; Pointer to the sprite address - 16bits (lo,hi)
+BufPtr:         .res 2       ; Pointer to the buffer address - 16bits (lo,hi)
 
 XScroll:        .res 1       ; Store the horizontal scroll position
 CurrNametable:  .res 1       ; Store the current starting nametable (0 or 1)
@@ -47,10 +49,115 @@ Seed:           .res 2       ; Initialize 16-bit seed to any value except 0
 
 Collision:      .res 1       ; Flag to indicate if collision happened or not
 
+Score:          .res 4       ; Score (1s, 10s, 100, and 1000s digits in decimal)
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .segment "CODE"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Routine to increment the scole value simulating BCD mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc IncrementScore
+    Increment1sDigit:
+      lda Score+0            ; Load the lowest digit of the number
+      clc
+      adc #1                 ; Add 1
+      sta Score+0
+      cmp #$A                ; Check for overflow
+      bne DoneIncrementing   ; If no overflow happened, we're done
+    Increment10sDigit:
+      lda #0
+      sta Score+0            ; Reset one's digit from 9 to 0
+      lda Score+1            ; Load second digit
+      clc
+      adc #1                 ; Add 1 (the carry from the previous digit)
+      sta Score+1            
+      cmp #$A                ; Check for overflow
+      bne DoneIncrementing   ; If no overflow happened, we're done
+    Increment100sDigit: 
+      lda #0
+      sta Score+1            ; Reset ten's digit from 9 to 0
+      lda Score+2            ; Load the third digit
+      clc
+      adc #1                 ; Add 1 (the carry from the previous digit)
+      sta Score+2
+      cmp #$A                ; Check for overflow
+      bne DoneIncrementing   ; If no overflow happened, we're done
+    Increment1000sDigit: 
+      lda #0
+      sta Score+2            ; Reset ten's digit from 9 to 0
+      lda Score+3            ; Load the third digit
+      clc
+      adc #1                 ; Add 1 (the carry from the previous digit)
+      sta Score+3
+    DoneIncrementing:
+      rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Draw the score in the nametable/background using buffering
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Buffer format starting at memory address $7000:
+;;
+;; 03 20 52 00 00 02 01 20  78 00 00
+;;  | \___/ \______/  | \___/   |  |
+;;  |   |      |      |   |     |  |
+;;  |   |      |      |   |     |  Length=0 (end of buffering)
+;;  |   |      |      |   |     byte to copy
+;;  |   |      |      |   PPU Address $2078
+;;  |   |      |      Length=1
+;;  |   |       bytes to copy
+;;  |   PPU Address $2052
+;;  Length=3
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc DrawScore
+    lda #$70
+    sta BufPtr+1
+    lda #$00
+    sta BufPtr+0
+
+    ldy #0
+    
+    lda #3                   ; Length = 3 (how many bytes we will send)
+    sta (BufPtr),y
+    iny
+
+    lda #$20
+    sta (BufPtr),y           ; Hi-Byte of the PPU address to be updated
+    iny
+    lda #$52
+    sta (BufPtr),y           ; Lo-Byte of the PPU address to be updated
+    iny
+
+    ;; Send the 3 digits of the score (from MSB to LSB) 100s, 10s, 1s
+
+    lda Score+2              ; 100s digit of the Score
+    clc
+    adc #$60                 ; Offset by $60 to point to the correct tile
+    sta (BufPtr),y
+    iny
+
+    lda Score+1              ; 10s digit of the Score
+    clc
+    adc #$60                 ; Offset by $60 to point to the correct tile
+    sta (BufPtr),y
+    iny
+
+    lda Score+0              ; 1s digit of the Score
+    clc
+    adc #$60                 ; Offset by $60 to point to the correct tile
+    sta (BufPtr),y
+    iny
+
+    lda #0
+    sta (BufPtr),y           ; Length=0 to signal the end of the buffer
+    iny
+
+    rts
+.endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routine to read controller state and store it inside "Buttons" in RAM
@@ -69,30 +176,6 @@ LoopButtons:
     bcc LoopButtons          ; Loop until Carry is set (from that initial 1 we loaded inside Buttons)
     rts
 .endproc
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Returns a random 8.bit number inside A (0-255), clobbers Y (0).
-;; Requires a 1-byte value on the zero-page called "Seed".
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; This is an 8-bit Galois LFSR with polynomial $1D.
-;; The sequence of numbers it generates will repeat after 255 calls.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;.proc GetRandomNumber8Bit
-;    ldy #8                   ; Loop counter (generate 8 bits)
-;    lda Seed
-;  
-;Loop8Times:
-;    asl                      ; Shift the register
-;    bcc :+
-;      eor #$1D               ; Apply XOR feedback when a 1 bit is shifted out
-;    :
-;    dey
-;    bne Loop8Times
-;
-;    sta Seed                 ; Saves the value in A into the Seed
-;    cmp #0                   ; Set flags
-;    rts
-;.endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Returns a random 8.bit number inside A (0-255), clobbers Y (0).
@@ -456,6 +539,10 @@ FinishCollisionCheck:
         beq NoCollisionFound
           lda #ActorType::NULL
           sta ActorsArray+Actor::Type,x
+          
+          jsr IncrementScore
+          jsr DrawScore
+
         NoCollisionFound:
 
         jmp NextActor
@@ -825,6 +912,36 @@ NMI:
 OAMStartDMACopy:             ; DMA copy of OAM data from RAM to PPU
     lda #$02                 ; Every frame, we copy spite data starting at $02**
     sta PPU_OAM_DMA          ; The OAM-DMA copy starts when we write to $4014
+
+BackgroundCopy:              ; Here is where we copy/draw the background buffer from $7000 to the PPU
+    lda #$70
+    sta BufPtr+1             
+    lda #$00
+    sta BufPtr+0             ; Set BufPtr pointer to start at address $7000
+
+    ldy #$00
+  BufferLoop:
+    lda (BufPtr),y           ; Fetch the Length
+    beq EndBackgroundCopy    ; If Length is 0, stop reading from background buffer
+
+    tax                      ; X = Length
+
+    iny
+    lda (BufPtr),y           ; Fetch hi-byte of PPU address to be updated
+    sta PPU_ADDR
+    iny
+    lda (BufPtr),y           ; Fetch lo-byte of PPU address to be updated
+    sta PPU_ADDR
+    iny
+  DataLoop:
+    lda (BufPtr),y
+    sta PPU_DATA
+    iny
+    dex                      ; X--
+    bne DataLoop
+
+    jmp BufferLoop           ; Loop back until we finish the buffer (find an entry with Length=0)
+EndBackgroundCopy:
 
 NewColumnCheck:
     lda XScroll

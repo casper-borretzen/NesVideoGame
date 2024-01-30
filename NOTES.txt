@@ -765,7 +765,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  I                                                               I | | | | | |
  I                                                               I | | | | | |
   --------------------------------------------------------------- -----------
-                                                                  1       2...
+                       8 COLUMNS ALREADY LOADED                   1       2...
  AttributeData:                                                   |       |
  .byte $ff,$aa,$aa,$aa,$9a, ... ----------------------------------+       |
  .byte $ff,$aa,$aa,$aa,$5a, ... ------------------------------------------+
@@ -1034,5 +1034,23 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    We check if point P is over X2, under X1, to the right of X1
    to the left of X2. If all of this is true then we have
    a collision!
+
+ - Background collision check:
+   To perform a background collision check, e.g. if the player is standing on
+   a platform or colliding with a wall we can read the tilename from 
+   the nametable in VRAM.
+   Reading from VRAM is similar to writing to it. Reading can only be done
+   when the PPU is off or during VBLANK.
+   How to read from VRAM:
+    - Set PPU_ADDR with the address we want to read from.
+      (We can use screen coordinates (from player position x and y) and 
+      convert that to the correct tile address in the active nametable)
+    - Read the data from PPU_DATA (LDA PPU_DATA)
+      (PPU_ADDR auto-increments, just like when we're storing data)
+    - Check the result we got from PPU_DATA and see if it is a tile with
+      collision.
+    - Before rendering starts (after we've read from VRAM) it is customary to 
+      set PPU_ADDR back to the address of the upper-left of the nametable to 
+      prevent corruption of the picture frame.
 
 

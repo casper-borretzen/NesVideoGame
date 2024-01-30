@@ -2,6 +2,18 @@
 // VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - 00010000:
+    - Course section 17: Displaying Score Values
+        - Added IncrementScore subroutine that converts hex -> decimal.
+        - Added DrawScore subroutine that stores the score value in a buffer
+          in memory (at $7000).
+        - Added subroutine BackgroundCopy to read the buffer and update the
+          nametable to update the status bar (score, etc.) at 
+          the top of the screen.
+        - Added jumps to the IncrementScore and DrawScore subroutines
+          when the missile collides with an airplane.
+        (Completed section)
+
  - 00001111:
     - Course section 16: Collision Detection
         - Added subroutines to check for collision between a point (on the 
