@@ -196,9 +196,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - ca65 Users Guide: https://cc65.github.io/doc/ca65.html
  
  - ca65 is very powerful and supports:
-    - macros
-    - enums
-    - structs
+    - macros (.macro / .endmacro)
+    - enums (.enum / .endenum)
+    - structs (.struct / .endstruct)
     - .sizeof()
     - and more..
 
@@ -208,9 +208,10 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
  - Roll-off: When decrementing $00 -> $FF
  - Roll-off: When incrementing $FF -> $00
- - Macros are copy/pasted code by the assembler
- - Subroutines are jumps that happen at runtime
- - Labels are memory addresses that can be referenced by name
+ - Macros are copy/pasted code by the assembler (.macro / .endmacro)
+ - Subroutines are jumps that happen at runtime (.proc / .endproc)
+   Code inside a subroutine is in a seperate scope from the rest of the code.
+ - Labels are memory addresses that can be referenced by name (:LabelName)
  - Unnamed labels can be created with : and referenced with :- (previous) or :+ (next)
  - Pointers are a 16-bit address stored as lo-byte, followed by hi-byte.
    And are referenced by using parentheses.
@@ -682,6 +683,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    The first color in every indvidual palette is the background color.
  - The pattern tables can be thought of as different brushes 
    while the nametable is the canvas in which we paint the final result.
+ - If we want to implement CHR Bank Switching we need to update the
+   iNes header and the nes.cfg file to simulate a mapper.
+   We can then use address $8000 to trigger bank switching.
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1053,4 +1057,30 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
       set PPU_ADDR back to the address of the upper-left of the nametable to 
       prevent corruption of the picture frame.
 
+ - Atlantico prototype project, states:
+     
+     STATE - TITLESCREEN:
+       TitleScreenLoop{
+         - Read controller
+         - Select menu option
+         - Press "Start" button -> Go to GAMEPLAY state
+       }          
 
+     STATE - GAMEPLAY:
+       GameLoop {
+         - Read controller
+         - Press "A" Button
+         - Shoot missiles
+         - Draw Sprites
+         - Update/Collision check
+         - If player dies -> Go to GAMEOVER state
+       }
+
+     STATE - GAMEOVER:
+       GameOverLoop{
+         - Read controller
+         - Press "Start" button -> Go to TITLESCREEN state
+       }
+
+    We'll make a .proc for each of the states, not to use them as subroutes
+    but to have different scopes for the different states.

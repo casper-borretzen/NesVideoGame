@@ -3,8 +3,15 @@
 .include "actor.inc"
 .include "reset.inc"
 .include "utils.inc"
+.include "state.inc"
+
 
 .segment "ZEROPAGE"
+
+MenuItem:       .res 1       ; Keep track of the menu item that is selected
+
+GameState:      .res 1       ; Keep track of game state
+
 Buttons:        .res 1       ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
 PrevButtons:    .res 1       ; Previously pressed buttons
 
@@ -24,6 +31,7 @@ Clock60:        .res 1       ; Counter that increments per second (60 frames)
 BgPtr:          .res 2       ; Pointer to background address - 16bits (lo,hi)
 SprPtr:         .res 2       ; Pointer to the sprite address - 16bits (lo,hi)
 BufPtr:         .res 2       ; Pointer to the buffer address - 16bits (lo,hi)
+PalPtr:         .res 2       ; Pointer to the palette address
 
 XScroll:        .res 1       ; Store the horizontal scroll position
 CurrNametable:  .res 1       ; Store the current starting nametable (0 or 1)
@@ -50,7 +58,6 @@ Seed:           .res 2       ; Initialize 16-bit seed to any value except 0
 Collision:      .res 1       ; Flag to indicate if collision happened or not
 
 Score:          .res 4       ; Score (1s, 10s, 100, and 1000s digits in decimal)
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PRG-ROM code located at $8000
@@ -206,12 +213,45 @@ LoopButtons:
 .proc LoadPalette
     PPU_SETADDR $3F00
     ldy #0                   ; Y = 0
-:   lda PaletteData,y        ; Lookup byte in ROM
+:   lda (PalPtr),y           ; Lookup byte in ROM
     sta PPU_DATA             ; Set value to send to PPU_DATA
     iny                      ; Y++
     cpy #32                  ; Is Y equal to 32?
     bne :-                   ; Not yet, keep looping
     rts                      ; Return from subroutine
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine set the color palette to Cloudy mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc SetPaletteCloudy
+    lda #>PaletteDataCloudy
+    sta PalPtr+1
+    lda #<PaletteDataCloudy
+    sta PalPtr+0
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine set the color palette to Clear mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc SetPaletteClear
+    lda #>PaletteDataClear
+    sta PalPtr+1
+    lda #<PaletteDataClear
+    sta PalPtr+0
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine set the color palette to Night mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc SetPaletteNight
+    lda #>PaletteDataNight
+    sta PalPtr+1
+    lda #<PaletteDataNight
+    sta PalPtr+0
+    rts
 .endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -757,12 +797,166 @@ FinishCollisionCheck:
     rts 
 .endproc
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to load background data from the TitleScreen
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc LoadTitleScreen
+    lda #<TitleScreenData    ; Lo-byte of memory address of (BgPtr)+0
+    sta BgPtr
+    lda #>TitleScreenData    ; Hi-byte of memory address of (BgPtr)+1
+    sta BgPtr+1
+
+    PPU_SETADDR $2000        ; Point PPU address to first nametable at $2000
+
+    ldx #$00                 ; X = 0 --> x is the outer loop index (hi-byte) from $0 to $4
+    ldy #$00                 ; Y = 0 --> y is the inner loop index (lo-byte) from $0 to $FF
+  OuterLoop:
+  InnerLoop:
+    lda (BgPtr),y            ; Fetch background data from ROM
+    sta PPU_DATA
+    iny                      ; Y++
+    cpy #0
+    beq IncreaseHiByte       ; If Y == 0 (wrapped around 256?), Then: we need to increase the hi-byte
+    jmp InnerLoop            ; Else: Continue with the inner loop
+  IncreaseHiByte:
+    inc BgPtr+1              ; We increment the hi-byte pointer to point to the next background data region
+    inx                      ; X++
+    cpx #4
+    bne OuterLoop            ; If X is not 4, loop back to the outer loop
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to switch CHR banks
+;; Params = A has the bank number
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc SwitchCHRBank
+    sta $8000                ; $8000 is the bank switch register of mapper 3
+    rts
+.endproc
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reset handler (called when the NES resets or powers on)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Reset:
     INIT_NES                 ; Macro to initialize the NES to a known state
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;   T I T L E S C R E E N   ;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc TitleScreen
+    lda #1
+    jsr SwitchCHRBank        ; Switch the CHR tiles to use the titlescreen one
+    lda #State::TITLESCREEN
+    sta GameState            ; GameState = TITLESCREEN
+    jsr SetPaletteCloudy     ; Set palette to cloudy
+    jsr LoadPalette          ; Load the selected palette
+    jsr LoadTitleScreen      ; Load the titlescreen nametable
+
+DrawMenuArrow:
+    lda #92                  
+    sta $0200                ; Sprite Y position at $0200
+    lda #$23                 
+    sta $0201                ; Sprite Tile # at $0201
+    lda #%00000001           
+    sta $0202                ; Sprite attributes at $0202
+    lda #90                  
+    sta $0203                ; Sprite X position at $0203
+
+EnableNMI:
+    lda #%10010000
+    sta PPU_CTRL
+    lda #%00011110
+    sta PPU_MASK
+
+CheckMenuItem:
+    lda MenuItem             ; Check the current menu selection
+    bne :+
+      jsr SetPaletteClear    ; If 0 set palette to clear
+    : cmp #1
+    bne :+
+      jsr SetPaletteCloudy   ; If 1 set palette to cloudy
+    : cmp #2
+    bne :+
+      jsr SetPaletteNight    ; If 2 set palette to night
+    :
+
+TitleScreenLoop:
+    lda Buttons
+    sta PrevButtons
+    jsr ReadControllers
+    
+  CheckStartButton:
+    lda Buttons
+    and #BUTTON_START
+    beq :+
+      jmp GamePlay           ; Start the game (and change to the PLAYING GameState)
+    :
+
+  CheckUpButton:
+    lda Buttons              ; Load buttons byte
+    and #BUTTON_UP           ; Mask UP button bit
+    beq :+                   ; If the UP button is pressed the UP bit should be 1
+      cmp PrevButtons
+      beq :+                 ; Only perform button action once per press/release
+        lda MenuItem
+        beq :+               ; Only decrement MenuItem if over 0
+          dec MenuItem       ; MenuItem--
+          lda $0200          ; Load selection arrow Y position
+          sec
+          sbc #17            ; Subtract 17 pixels as we go up in the menu items
+          sta $0200          ; Store selection arrow Y position
+          jmp CheckMenuItem  ; Do things based on currently selected menu entry
+    :
+
+  CheckDownButton:
+    lda Buttons
+    and #BUTTON_DOWN
+    beq :+
+      cmp PrevButtons
+      beq :+
+        lda MenuItem
+        cmp #2
+        beq:+
+          inc MenuItem
+          lda $0200
+          clc
+          adc #17            ; Add 17 pixels as we go down in the menu items
+          sta $0200
+          jmp CheckMenuItem
+    :
+
+    WaitForVBlank:
+      lda IsDrawComplete
+      beq WaitForVBlank
+    lda #0
+    sta IsDrawComplete
+
+    jmp TitleScreenLoop
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;   G A M E   P L A Y   ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc GamePlay
+    lda #0
+    jsr SwitchCHRBank
+    lda #State::PLAYING
+    sta GameState
+
+    PPU_DISABLE_NMI
 
 InitVariables:
     lda #0
@@ -899,6 +1093,7 @@ CheckAButton:
     sta IsDrawComplete
 
     jmp GameLoop
+.endproc
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -942,6 +1137,10 @@ BackgroundCopy:              ; Here is where we copy/draw the background buffer 
 
     jmp BufferLoop           ; Loop back until we finish the buffer (find an entry with Length=0)
 EndBackgroundCopy:
+
+    lda GameState
+    cmp #State::PLAYING
+    bne EndScrolling
 
 NewColumnCheck:
     lda XScroll
@@ -997,6 +1196,8 @@ ScrollBackground:
     lda #0
     sta PPU_SCROLL           ; No vertical scrolling
 
+EndScrolling:
+
 RefreshRendering:
     lda #%10010000           ; Enable NMI, sprites from Pattern Table 0, background from Pattern Table 1
     ora CurrNametable        ; OR with CurrNametable (0 or 1) to set PPU_CTRL bit-0 (starting nametable)
@@ -1030,9 +1231,15 @@ IRQ:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Hardcoded list of color values in ROM to be loaded by the PPU
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-PaletteData:
+PaletteDataCloudy:
 .byte $1C,$0F,$22,$1C, $1C,$37,$3D,$0F, $1C,$37,$3D,$30, $1C,$0F,$3D,$30 ; Background palette
 .byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
+PaletteDataClear:
+.byte $1C,$0F,$22,$1C, $1C,$36,$21,$0B, $1C,$36,$21,$30, $1C,$0F,$3D,$30 ; Background palette
+.byte $1C,$0F,$2D,$10, $1C,$0F,$20,$27, $1C,$2D,$38,$18, $1C,$0F,$1A,$32 ; Sprite palette
+PaletteDataNight:
+.byte $0C,$0F,$1C,$0C, $0C,$26,$0C,$0F, $0C,$26,$0C,$2D, $0C,$36,$07,$2D ; Background palette
+.byte $0C,$0F,$1D,$2D, $0C,$0F,$20,$27, $0C,$2D,$38,$18, $0C,$0F,$1A,$21 ; Sprite palette
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Background data (contains 4 screens that should scroll horizontally)
@@ -1207,11 +1414,17 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$59,$00,$00,$00
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
+TitleScreenData:
+.incbin "titlescreen.nam"
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Here we add the CHR-ROM data, included from an external .CHR file
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-.segment "CHARS"
+.segment "CHARS1"
 .incbin "atlantico.chr"
+
+.segment "CHARS2"
+.incbin "titlescreen.chr"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Vectors with the addresses of the handlers that we always add at $FFFA

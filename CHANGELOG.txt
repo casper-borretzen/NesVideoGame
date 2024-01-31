@@ -2,6 +2,21 @@
 // VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - 00010001:
+    - Course section 18: Game State & Title Screen
+        - Added multiple .chr files, nametables and implemented emulation
+          of a mapper to support CHR Bank Switching.
+        - Implemented a state system with 4 game states:
+          TITLESCREEN, PLAYING, GAMEOVER, PAUSED
+        - The different states are separated into differnt .proc's
+          to have different scopes
+        - Implemented a title screen that uses a different .chr file than
+          in the game and enabled bank switching to switch between the two
+          banks.
+        - Added menu options and a arrow indicator to the title screen
+          to select between different play modes (different times of day)
+        (Completed section)
+
  - 00010000:
     - Course section 17: Displaying Score Values
         - Added IncrementScore subroutine that converts hex -> decimal.
