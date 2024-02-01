@@ -5,7 +5,6 @@
 .include "utils.inc"
 .include "state.inc"
 
-
 .segment "ZEROPAGE"
 
 MenuItem:       .res 1       ; Keep track of the menu item that is selected
@@ -63,6 +62,29 @@ Score:          .res 4       ; Score (1s, 10s, 100, and 1000s digits in decimal)
 ;; PRG-ROM code located at $8000
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .segment "CODE"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; FamiStudio audio engine configuration
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.define FAMISTUDIO_CA65_ZP_SEGMENT   ZEROPAGE
+.define FAMISTUDIO_CA65_RAM_SEGMENT  RAM
+.define FAMISTUDIO_CA65_CODE_SEGMENT CODE
+
+FAMISTUDIO_CFG_EXTERNAL       = 1
+FAMISTUDIO_CFG_DPCM_SUPPORT   = 1
+FAMISTUDIO_CFG_SFX_SUPPORT    = 1
+FAMISTUDIO_CFG_SFX_STREAMS    = 2
+FAMISTUDIO_CFG_EQUALIZER      = 1
+FAMISTUDIO_USE_VOLUME_TRACK   = 1
+FAMISTUDIO_USE_PITCH_TRACK    = 1
+FAMISTUDIO_USE_SLIDE_NOTES    = 1
+FAMISTUDIO_USE_VIBRATO        = 1
+FAMISTUDIO_USE_ARPEGGIO       = 1
+FAMISTUDIO_CFG_SMOOTH_VIBRATO = 1
+FAMISTUDIO_USE_RELEASE_NOTES  = 1
+FAMISTUDIO_DPCM_OFF           = $E000
+
+.include "audioengine.asm"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routine to increment the scole value simulating BCD mode
@@ -583,6 +605,10 @@ FinishCollisionCheck:
           jsr IncrementScore
           jsr DrawScore
 
+          lda #1
+          ldx #FAMISTUDIO_SFX_CH1
+          jsr famistudio_sfx_play ; Play missile launch sound effect
+
         NoCollisionFound:
 
         jmp NextActor
@@ -880,7 +906,7 @@ FinishCollisionCheck:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Reset:
     INIT_NES                 ; Macro to initialize the NES to a known state
-
+    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -898,6 +924,16 @@ Reset:
     jsr SetPaletteCloudy     ; Set palette to cloudy
     jsr LoadPalette          ; Load the selected palette
     jsr LoadTitleScreenRLE   ; Load the titlescreen nametable
+    lda #0
+    sta MenuItem
+    
+AudioEngineInit:
+    ldx #<music_data_titan    ; load lo-byte of music
+    ldy #>music_data_titan    ; load hi-byte of music
+    lda #1 ; NTSC
+    jsr famistudio_init       ; initialize famistudio
+    lda #0
+    jsr famistudio_music_play ; start playing music
 
 DrawMenuArrow:
     lda #92                  
@@ -928,6 +964,8 @@ CheckMenuItem:
     :
 
 TitleScreenLoop:
+    jsr famistudio_update    ; progress audio frame per frame
+
     lda Buttons
     sta PrevButtons
     jsr ReadControllers
@@ -1014,6 +1052,19 @@ InitVariables:
     sta Seed+1
     sta Seed+0               ; Initialize the Seed with any value different than 0
 
+AudioEngineInit:
+    jsr famistudio_music_stop
+    ldx #<music_data_maritime ; load lo-byte of music
+    ldy #>music_data_maritime ; load hi-byte of music
+    lda #1 ; NTSC
+    jsr famistudio_init       ; initialize famistudio
+    lda #0
+    jsr famistudio_music_play ; start playing music
+
+    ldx #<sounds
+    ldy #>sounds
+    jsr famistudio_sfx_init       ; initialize famistudio sfx
+
 Main:
     jsr LoadPalette          ; Call LoadPalette subroutine to load 32 colors into our palette
 
@@ -1099,7 +1150,8 @@ EnableRendering:
     lda #%00011110
     sta PPU_MASK             ; Set PPU_MASK bits to render the background
 
-GameLoop:    
+GameLoop:   
+    jsr famistudio_update
     lda Buttons
     sta PrevButtons          ; Stores the previously pressed buttons
 
@@ -1120,6 +1172,10 @@ CheckAButton:
         lda YPos
         sta ParamYPos
         jsr AddNewActor
+
+        lda #0
+        ldx #FAMISTUDIO_SFX_CH0
+        jsr famistudio_sfx_play ; Play missile launch sound effect
     :
 
     jsr SpawnActors
@@ -1457,6 +1513,16 @@ AttributeData:
 TitleScreenData:
 ;.incbin "titlescreen.nam"
 .incbin "titlescreen.rle"
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Here goes the encoded music/sound data that was exported by FamiStudio
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+MusicData:
+.include "music/maritime.asm"
+.include "music/titan.asm"
+
+SoundFXData:
+.include "sfx/sounds.asm"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Here we add the CHR-ROM data, included from an external .CHR file

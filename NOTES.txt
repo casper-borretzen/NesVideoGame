@@ -889,38 +889,173 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
         rts
     .endproc
 
+
 ///////////////////////////////////////////////////////////////////////////////
-// LINKS / RESOURCES:
+// AUDIO PROCESSING UNIT (APU)
 ///////////////////////////////////////////////////////////////////////////////
 
- - Nathan Altice, I Am Error
-   A very good book that talks about working around
-   the limitations of the NES platform.
+ - The APU is a sound generator packaged inside the ricoh 2A03 chip.
 
- - Tile Editors:
-    - NEXXT (Windows): https://frankengraphics.itch.io/nexxt
-    - Nostalgic Assets Workshop (Windows): https://nesrocks.itch.io/naw
+ - The APU has 5 independent channels:
+    Pulse 1:  Harsh, sharp (lead melody tune)
+    Pulse 2:  Harsh, sharp (lead melody tune, often used to harmonize with 1)
+    Triangle: Smooth (bass or flute tone)
+    Noise:    Random noise (explosions, drums, snare)
+    DPCM:     Samples, pre-recorded sounds (voice and percussion)
 
- - NESdev Wiki:
-    - iNES header:             https://www.nesdev.org/wiki/INES
-    - Init code:               https://www.nesdev.org/wiki/Init_code
-    - PPU registers:           https://www.nesdev.org/wiki/PPU_registers
-    - Random number generator: https://www.nesdev.org/wiki/Random_number_generator
-    - Tile compression:        https://www.nesdev.org/wiki/Tile_compression
+ - Memory addresses for the APU: $4000-$4015
+   
+ - Enabling/disabling channels is controlled with $4015:
 
- - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
+   $4015 : APU_FLAGS : - - - 4 3 2 1 0
+                             | | | | |
+                             | | | | +- Pulse 1
+                             | | | +--- Pulse 2 
+                             | | +----- Triangle 
+                             | +------- Noise  
+                             +--------- DPCM
+                             
+ - Square channel:
+     The pulse (square wave) channel is very popular. We can controll the
+     channel's volume, envelope, length, sweep and period.
+     Period is dictated by an 11-bit value.
+    
+   Square 1 is controlled with ports $4000-$4003:
 
- - NROM template: https://github.com/pinobatch/nrom-template
+    $4000 : SQ1_ENV : 7 6 5 4 3 2 1 0
+                      | | | | | | | |
+                      | | | | +-+-+-+- Volume (0-15)
+                      | | | +--------- Constant Volume Disabled
+                      | | +----------- Length Counter Disabled
+                      +-+------------- Duty Cycle (0;1;2;3)
+ 
+    $4002 : SQ1_LO  : 7 6 5 4 3 2 1 0
+                      | | | | | | | |
+                      +-+-+-+-+-+-+-+- Period (note, low 8 bits)
+ 
+    $4003 : SQ1_HI  : 7 6 5 4 3 2 1 0
+                      | | | | | | | |
+                      | | | | | +-+-+- Period (note, high 3 bits)
+                      +-+-+-+-+------- Length Counter
+     
+   Square 2 is controlled with ports $4004-$4007:
+    $4004 : SQ2_ENV : (same bits as SQ1)
+    $4006 : SQ2_LO  : (same bits as SQ1)
+    $4007 : SQ2_HI  : (same bits as SQ1)
 
- - Morphcat Games:
-    - How we fit an NES game into 40 Kilobytes (Micro Mages): https://youtu.be/ZWQ0591PAxM
-    - Talk & Play / Sprite Recycling (Micro Mages): https://www.kickstarter.com/projects/morphcat-games/triple-jump-a-platformer-multi-cartridge-for-the-nes/posts/3913486
+ - Triangle channel:
+     Generates pseudo-triangle wave with a rounder sound than the square waves.
+     We have no control over the channel's volume or tone.
 
- - NesHacker videos:
-    - NES Hardware Explained:         https://youtu.be/mMq4FFUnBPc
-    - NES Architecture Explained:     https://youtu.be/PwZEBE66an0
-    - NES Graphics Explained:         https://youtu.be/7Co_8dC2zb8
-    - The Code That Makes Mario Move: https://youtu.be/ZuKIUjw_tNU
+   Controlled with ports $4008 - $400B:
+
+    $4008 : TRI_CTRL : 7 6 5 4 3 2 1 0
+                       | | | | | | | |
+                       | +-+-+-+-+-+-+- Length Counter (duration)
+                       +--------------- Length Counter Halt
+
+    $400A : TRI_LO   : 7 6 5 4 3 2 1 0
+                       | | | | | | | | 
+                       +-+-+-+-+-+-+-+- Period (note, low 8 bits)
+
+    $400B : TRI_HI   : 7 6 5 4 3 2 1 0
+                       | | | | | | | |
+                       | | | | | +-+-+- Period (note, high 3 bits)
+                       +-+-+-+-+------- Length Counter
+
+ - Noise channel:
+     Produces noise with a pseudo-random bit generator.
+     It has volume, envelope and length, like the pulse channels.
+
+   Controlled with ports $400C - $400F:
+
+    $400C : NOISE_ENV    : - - 5 4 3 2 1 0
+                               | | | | | |
+                               | | +-+-+-+- Volume (0-15)
+                               | +--------- Constant Volume Disabled
+                               +----------- Length Counter Disabled
+ 
+    $400E : NOISE_PERIOD : 7 - - - 3 2 1 0
+                           |       | | | |
+                           |       +-+-+-+- Period (note, low 8 bits)
+                           +--------------- Loop Noise
+ 
+    $400F : NOISE_LEN    : 7 6 5 4 3 - - -
+                           | | | | | 
+                           | | | | |
+                           +-+-+-+-+------- Length Counter
+
+ - DMC channel:
+     The Delta Modulation channel outputs a 7-bit PCM signal from a counter
+     that can be driven by DPCM samples. The samples are stored as a stream
+     of 1-bit deltas that control the 7-bit PCM counter that
+     the cannel outputs. The channels might loop if the loop flag at $4010
+     is set, and might generate an IRQ when the end of the sample is reached.
+
+   Controlled with ports $4010 - $4013:
+
+    $4010 : SAMPLE_CTRL  : 7 6 5 4 3 2 1 0
+                           | |     | | | |
+                           | |     +-+-+-+- Frequency (playback rate)
+                           | +------------- Loop
+                           +--------------- IRQ enabled
+
+    $4011 : SAMPLE_COUNT : 7 6 5 4 3 2 1 0
+
+    $4012 : SAMPLE_ADDR  : 7 6 5 4 3 2 1 0
+                           | | | | | | | | 
+                           +-+-+-+-+-+-+-+- Sample Address ($C000 - $FFFF)
+
+    $4013 : SAMPLE_LEN   : 7 6 5 4 3 2 1 0
+                           | | | | | | | | 
+                           +-+-+-+-+-+-+-+- Sample Length (in bytes)
+
+ - Period:
+     The longer a period is, the lower the pitch of the note.
+     The shorter a period is, the higher the pitch of the note.
+
+ - Convert musical notes to period:
+                        Different for NTSC and PAL
+                       /
+              CPU speed
+   Period  =  ---------  -  1
+              Freq * 16
+
+   
+   Example:
+   The frequency of the note C# is 554.37Hz
+                        NTSC
+                       /
+                1789773Hz
+   Period  =  -------------  -  1  =  201 (decimal)  =  C9 (hex)
+              554.37Hz * 16
+ 
+ - We can make a lookup table hardcoded in ROM to make it easier to program
+   playing of notes, instead of having to use this formula every time.
+
+ - Sound engine:
+     We need to define a format for encoding/decoding the audio data in ROM.
+     The format should include note, duration, etc.
+     We can make our own engine for playing sound or download a premade
+     engine like the FamiStudio sound engine.
+
+ - FamiStudio sound engine:
+     We can export sound files from the FamiStudio editor to play in the
+     FamiStudio sound engine which we will integrate into our project.
+     (we'll include the famistudio source code in our project
+     similar to using a library in other coding languages)
+
+     Documentation: https://famistudio.org/doc/soundengine/
+
+     Subroutines:
+     famistudio_init:            Initialize the engine with some music data
+     famistudio_music_play:      Start music playback with a specific song
+     famistudio_music_pause:     Pause/unpause music playback
+     famistudio_music_stop:      Stops music playback
+     famistudio_sfx_init:        Initialize SFX engine with SFX data
+     famistudio_sfx_play:        Play a SFX
+     famistudio_sfx_simple_play: Play a DPCM SFX
+     famistudio_update:          Updates the music/SFX engine, call once per frame, ideally from NMI
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -955,7 +1090,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
     We'll make a .proc for each of the states, not to use them as subroutes
     but to have different scopes for the different states.
 
-// COLLSION DETECTION:
+// COLLISION DETECTION:
 
  - On modern hardware collision check might be implemented very simple with
    AABB (Axis-Align Bounding Box) collision checking.
@@ -1136,4 +1271,43 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
       Single-byte object compression
 
   - IMPORTANT: Encoding and compression are at the core of any NES game!
+
+///////////////////////////////////////////////////////////////////////////////
+// LINKS / RESOURCES:
+///////////////////////////////////////////////////////////////////////////////
+
+ - Nathan Altice, I Am Error
+     A very good book that talks about working around
+     the limitations of the NES platform.
+
+ - Tile Editors:
+     - NEXXT (Windows): https://frankengraphics.itch.io/nexxt
+     - Nostalgic Assets Workshop (Windows): https://nesrocks.itch.io/naw
+
+ - FamiStudio: https://famistudio.org/
+     ($ yay -S famistudio)
+
+ - Christopher Parker's NES Audio Tutorial: https://nerdy-nights.nes.science/#audio_tutorial
+     How to write your own audio engine from scratch.
+
+ - NESdev Wiki:
+     - iNES header:             https://www.nesdev.org/wiki/INES
+     - Init code:               https://www.nesdev.org/wiki/Init_code
+     - PPU registers:           https://www.nesdev.org/wiki/PPU_registers
+     - Random number generator: https://www.nesdev.org/wiki/Random_number_generator
+     - Tile compression:        https://www.nesdev.org/wiki/Tile_compression
+
+ - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
+
+ - NROM template: https://github.com/pinobatch/nrom-template
+
+ - Morphcat Games:
+     - How we fit an NES game into 40 Kilobytes (Micro Mages): https://youtu.be/ZWQ0591PAxM
+     - Talk & Play / Sprite Recycling (Micro Mages): https://www.kickstarter.com/projects/morphcat-games/triple-jump-a-platformer-multi-cartridge-for-the-nes/posts/3913486
+
+ - NesHacker videos:
+     - NES Hardware Explained:         https://youtu.be/mMq4FFUnBPc
+     - NES Architecture Explained:     https://youtu.be/PwZEBE66an0
+     - NES Graphics Explained:         https://youtu.be/7Co_8dC2zb8
+     - The Code That Makes Mario Move: https://youtu.be/ZuKIUjw_tNU
 

@@ -3,6 +3,13 @@
 ///////////////////////////////////////////////////////////////////////////////
 
  - 00010010:
+    - Course section 20: NES Audio
+        - Implemented the FamiStudio audio engine into the project.
+        - Added separate background music for titlescreen and game.
+        - Added sound effects for missile and explosion.
+        (Completed section)
+
+ - 00010010:
     - Course section 19: Encoding Level Data
         - Added python code to decode a .nam nametable using RLE compression
           to a .rle file.
