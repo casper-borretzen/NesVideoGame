@@ -893,14 +893,20 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 // LINKS / RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - Nathan Altice, I Am Error
+   A very good book that talks about working around
+   the limitations of the NES platform.
+
  - Tile Editors:
     - NEXXT (Windows): https://frankengraphics.itch.io/nexxt
+    - Nostalgic Assets Workshop (Windows): https://nesrocks.itch.io/naw
 
  - NESdev Wiki:
     - iNES header:             https://www.nesdev.org/wiki/INES
     - Init code:               https://www.nesdev.org/wiki/Init_code
     - PPU registers:           https://www.nesdev.org/wiki/PPU_registers
     - Random number generator: https://www.nesdev.org/wiki/Random_number_generator
+    - Tile compression:        https://www.nesdev.org/wiki/Tile_compression
 
  - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
 
@@ -924,6 +930,74 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - Acceleration -> Velocity -> Position:
    Acceleration is change in velocity per unit of time.
    Velocity is change in position per unit of time.
+
+ - Example of game states:
+     STATE - TITLESCREEN:
+       TitleScreenLoop{
+         - Read controller
+         - Select menu option
+         - Press "Start" button -> Go to GAMEPLAY state
+       }          
+     STATE - GAMEPLAY:
+       GameLoop {
+         - Read controller
+         - Press "A" Button
+         - Shoot missiles
+         - Draw Sprites
+         - Update/Collision check
+         - If player dies -> Go to GAMEOVER state
+       }
+     STATE - GAMEOVER:
+       GameOverLoop{
+         - Read controller
+         - Press "Start" button -> Go to TITLESCREEN state
+       }
+    We'll make a .proc for each of the states, not to use them as subroutes
+    but to have different scopes for the different states.
+
+// COLLSION DETECTION:
+
+ - On modern hardware collision check might be implemented very simple with
+   AABB (Axis-Align Bounding Box) collision checking.
+   But most NES games does not perform a full box-box collision check, it uses
+   too much processing power and cheaper sollutions are usually preferred.
+   One way to do a cheaper collision check is to pick special points of our
+   first object and check those against a certain region of the second object.
+
+                Region of 2nd object
+               /
+   X1-----------+
+   |            |
+   |            |
+   |     P      |
+   +-----|------X2
+         |  
+   Collision point of 1st object
+   (e.g. tip of missile, tip of sword, etc.)
+
+   We check if point P is over X2, under X1, to the right of X1
+   to the left of X2. If all of this is true then we have
+   a collision!
+
+ - Background collision check:
+   To perform a background collision check, e.g. if the player is standing on
+   a platform or colliding with a wall we can read the tilename from 
+   the nametable in VRAM.
+   Reading from VRAM is similar to writing to it. Reading can only be done
+   when the PPU is off or during VBLANK.
+   How to read from VRAM:
+    - Set PPU_ADDR with the address we want to read from.
+      (We can use screen coordinates (from player position x and y) and 
+      convert that to the correct tile address in the active nametable)
+    - Read the data from PPU_DATA (LDA PPU_DATA)
+      (PPU_ADDR auto-increments, just like when we're storing data)
+    - Check the result we got from PPU_DATA and see if it is a tile with
+      collision.
+    - Before rendering starts (after we've read from VRAM) it is customary to 
+      set PPU_ADDR back to the address of the upper-left of the nametable to 
+      prevent corruption of the picture frame.
+
+// PSEUDO RANDOM NUMBER GENERATION:
 
  - (Pseudo) Random numbers using Linear-Feedback Shift Register (LFSR).
    A very common method for generating pseudo random numbers suitable for
@@ -1016,71 +1090,50 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    add a timer at the start of the game and count how long it takes for the
    player to press the start button. We can use the result of the timer
    as the initial seed instead of hardcoding a value.
+
+// COMPRESSION:
+
+ - Run-Length Encoding (RLE) Compression:
+   A way to compress data if we have a lot of repeating values is by
+   using RLE Compression.
+
+   A simple way to implement RLE is to encode length and tilenumber as a
+   sequence of bytes.
+   Example:
+   FF FF FF FF FF FF FF FF A0 3F FE FE FE FE FE FE FE
+
+   Becomes:
+   08 FF 01 A0 01 3F 07 FE
+    \ Number of times repeated
+
+   The RLE can be more advanced with patterns:
+   FF = Repetition pattern
+   Example:
+   FF 09 0A 0B
+   |  |   |  |
+   |  |   Pattern
+   |   \ Number of times repeated
+    \ Start of repetition pattern
    
- - On modern hardware collision check might be implemented very simple with
-   AABB (Axis-Align Bounding Box) collision checking.
-   But most NES games does not perform a full box-box collision check, it uses
-   too much processing power and cheaper sollutions are usually preferred.
-   One way to do a cheaper collision check is to pick special points of our
-   first object and check those against a certain region of the second object.
+   Means:
+   0A 0B 0A 0B 0A 0B 0A 0B 0A 0B 0A 0B 0A 0B 0A 0B 0A 0B
 
-                Region of 2nd object
-               /
-   X1-----------+
-   |            |
-   |            |
-   |     P      |
-   +-----|------X2
-         |  
-   Collision point of 1st object
-   (e.g. tip of missile, tip of sword, etc.)
+ - Another popular algorithm for encoding tilemaps is the LZ77
+   family of compressors. (Used by Kirby's Adventure)
 
-   We check if point P is over X2, under X1, to the right of X1
-   to the left of X2. If all of this is true then we have
-   a collision!
+ - Other techniques for level compression that are
+   popular among NES programmers:
+    - Metatiles:
+      Predefined configurations of tiles that stick to a constant set of
+      dimensions. Many NES games use metatiles that are 32 x 32 pixels.
+    - Tile Blocks:
+      Another popular technique that can help reduce the size of level
+      information in ROM is to define large groups of tiles that repeat
+      as a block.
+    - Object-based Compression:
+      Two-byte object compression
+      Three-byte object compression
+      Single-byte object compression
 
- - Background collision check:
-   To perform a background collision check, e.g. if the player is standing on
-   a platform or colliding with a wall we can read the tilename from 
-   the nametable in VRAM.
-   Reading from VRAM is similar to writing to it. Reading can only be done
-   when the PPU is off or during VBLANK.
-   How to read from VRAM:
-    - Set PPU_ADDR with the address we want to read from.
-      (We can use screen coordinates (from player position x and y) and 
-      convert that to the correct tile address in the active nametable)
-    - Read the data from PPU_DATA (LDA PPU_DATA)
-      (PPU_ADDR auto-increments, just like when we're storing data)
-    - Check the result we got from PPU_DATA and see if it is a tile with
-      collision.
-    - Before rendering starts (after we've read from VRAM) it is customary to 
-      set PPU_ADDR back to the address of the upper-left of the nametable to 
-      prevent corruption of the picture frame.
+  - IMPORTANT: Encoding and compression are at the core of any NES game!
 
- - Atlantico prototype project, states:
-     
-     STATE - TITLESCREEN:
-       TitleScreenLoop{
-         - Read controller
-         - Select menu option
-         - Press "Start" button -> Go to GAMEPLAY state
-       }          
-
-     STATE - GAMEPLAY:
-       GameLoop {
-         - Read controller
-         - Press "A" Button
-         - Shoot missiles
-         - Draw Sprites
-         - Update/Collision check
-         - If player dies -> Go to GAMEOVER state
-       }
-
-     STATE - GAMEOVER:
-       GameOverLoop{
-         - Read controller
-         - Press "Start" button -> Go to TITLESCREEN state
-       }
-
-    We'll make a .proc for each of the states, not to use them as subroutes
-    but to have different scopes for the different states.

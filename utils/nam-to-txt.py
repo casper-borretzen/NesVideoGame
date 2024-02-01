@@ -1,3 +1,4 @@
+# $ python3 nam-to-txt.py > output.txt
 with open(background.nam', 'rb') as f:
   i = 0
   while True:

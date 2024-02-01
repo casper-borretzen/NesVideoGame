@@ -800,7 +800,7 @@ FinishCollisionCheck:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutine to load background data from the TitleScreen
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-.proc LoadTitleScreen
+.proc LoadTitleScreenNAM
     lda #<TitleScreenData    ; Lo-byte of memory address of (BgPtr)+0
     sta BgPtr
     lda #>TitleScreenData    ; Hi-byte of memory address of (BgPtr)+1
@@ -823,6 +823,46 @@ FinishCollisionCheck:
     inx                      ; X++
     cpx #4
     bne OuterLoop            ; If X is not 4, loop back to the outer loop
+    rts
+.endproc
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subroutine to load background data from RLE compressed TitleScreen
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+.proc LoadTitleScreenRLE
+    lda #<TitleScreenData    ; Lo-byte of memory address of (BgPtr)+0
+    sta BgPtr
+    lda #>TitleScreenData    ; Hi-byte of memory address of (BgPtr)+1
+    sta BgPtr+1
+
+    PPU_SETADDR $2000        ; Point PPU address to first nametable at $2000
+    
+    ldy #0                   ; Y = 0 (Y counts how many bytes we are reading)
+
+  LengthLoop:
+    lda (BgPtr),y            ; Fetch new length
+    beq EndRoutine           ; Stop looping when we find Length = 0
+    iny
+    
+    bne :+
+      inc BgPtr+1            ; Increment hi-byte if Y rolls off back to 0
+    :
+
+    tax                      ; Transfer length to X (tile counter)
+    lda (BgPtr),y            ; Fetch new tile number
+    iny                      ; Y++
+    
+    bne :+
+      inc BgPtr+1            ; Increment hi-byte if Y rolls off back to 0
+    :
+
+    TileLoop:
+      sta PPU_DATA           ; Send tile value to PPU
+      dex                    ; X--
+      bne TileLoop
+    jmp LengthLoop           ; Loop back to read the next length
+
+  EndRoutine:
     rts
 .endproc
 
@@ -857,7 +897,7 @@ Reset:
     sta GameState            ; GameState = TITLESCREEN
     jsr SetPaletteCloudy     ; Set palette to cloudy
     jsr LoadPalette          ; Load the selected palette
-    jsr LoadTitleScreen      ; Load the titlescreen nametable
+    jsr LoadTitleScreenRLE   ; Load the titlescreen nametable
 
 DrawMenuArrow:
     lda #92                  
@@ -1415,7 +1455,8 @@ AttributeData:
 .byte $ff,$aa,$aa,$aa,$5a,$00,$00,$00
 
 TitleScreenData:
-.incbin "titlescreen.nam"
+;.incbin "titlescreen.nam"
+.incbin "titlescreen.rle"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Here we add the CHR-ROM data, included from an external .CHR file

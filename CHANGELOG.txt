@@ -2,6 +2,15 @@
 // VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
 
+ - 00010010:
+    - Course section 19: Encoding Level Data
+        - Added python code to decode a .nam nametable using RLE compression
+          to a .rle file.
+        - Compressed the nametable for the titlescreen using the
+          RLE compression script and added code for decoding the RLE
+          nametable.
+        (Completed section)
+
  - 00010001:
     - Course section 18: Game State & Title Screen
         - Added multiple .chr files, nametables and implemented emulation
