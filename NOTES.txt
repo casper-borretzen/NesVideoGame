@@ -4,9 +4,27 @@
 // https://pikuma.com/courses/nes-game-programming-tutorial
 ///////////////////////////////////////////////////////////////////////////////
 
+ SECTIONS:
+   #1: NES SPECIFICATIONS
+   #2: RICOH 2A03 CPU (6502)
+     2.1: 6502 PROCESSOR STATUS FLAGS REGISTER:
+     2.2: CPU MEMORY MAP:
+     2.3: 6502 ASSEMBLER:
+     2.4: 6502 ASSEMBLY CODE:
+     2.5: 6502 INSTRUCTIONS (OPCODES):
+   #3: NES GRAPHICS:
+     3.1: PPU REGISTERS
+     3.2: PPU MEMORY MAP
+     3.3: PATTERN TABLES AND NAMETABLES
+     3.4: SPRITES AND PPU OAM
+   #4: AUDIO PROCESSING UNIT (APU)
+   #5: CONTROLLER INPUT
+   #6: OTHER NOTES
+   #7: LINKS AND RESOURCES
+
 
 ///////////////////////////////////////////////////////////////////////////////
-// NINTENDO ENTERTAINMENT SYSTEM (NES) SPECIFICATIONS:
+// #1 | NINTENDO ENTERTAINMENT SYSTEM (NES) SPECIFICATIONS:
 ///////////////////////////////////////////////////////////////////////////////
  - CPU (NTSC)      : Ricoh 2A03 8-bit processor (6502 core) @ 1.79MHz
  - CPU (PAL)       : Ricoh 2A07 8-bit processor (6502 core) @ 1.66MHz
@@ -14,36 +32,36 @@
  - Graphics        : Ricoh 2C02 PPU (256x240 pixels)
 
 
-###############################################################################
-#                            Ricoh 2A03 CPU (6502)                            #
-###############################################################################
+///////////////////////////////////////////////////////////////////////////////
+// #2 | RICOH 2A03 CPU (6502):
+///////////////////////////////////////////////////////////////////////////////
 
-                               6502 CPU PINOUT
-                               ----------------
-                     GND-----<|1             40|>-----RES(INV)
-                     RDY-----<|2             39|>-----φ2(OUT)
-                 φ1(OUT)-----<|3             38|>-----SO
-                IRQ(INV)-----<|4             37|>-----φ0(IN)
-                      NC-----<|5             36|>-----NC
-                NMI(INV)-----<|6      R      35|>-----NC
-                    SYNC-----<|7      I      34|>-----R/W(INV)
-                     VCC-----<|8      C      33|>-----D0
-                      A0-----<|9      O      32|>-----D1
-                      A1-----<|10     H      31|>-----D2
-                      A2-----<|11            30|>-----D3
-                      A3-----<|12     2      29|>-----D4
-                      A4-----<|13     A      28|>-----D5
-                      A5-----<|14     0      27|>-----D6
-                      A6-----<|15     3      26|>-----D7
-                      A7-----<|16            25|>-----A15
-                      A8-----<|17            24|>-----A14
-                      A9-----<|18            23|>-----A13
-                     A10-----<|19            22|>-----A12
-                     A11-----<|20            21|>-----VSS
-                               ----------------
+                               [6502 CPU PINOUT]
+                               -----------------
+                     GND-----<|1              40|>-----RES(INV)
+                     RDY-----<|2              39|>-----φ2(OUT)
+                 φ1(OUT)-----<|3              38|>-----SO
+                IRQ(INV)-----<|4              37|>-----φ0(IN)
+                      NC-----<|5              36|>-----NC
+                NMI(INV)-----<|6       R      35|>-----NC
+                    SYNC-----<|7       I      34|>-----R/W(INV)
+                     VCC-----<|8       C      33|>-----D0
+                      A0-----<|9       O      32|>-----D1
+                      A1-----<|10      H      31|>-----D2
+                      A2-----<|11             30|>-----D3
+                      A3-----<|12      2      29|>-----D4
+                      A4-----<|13      A      28|>-----D5
+                      A5-----<|14      0      27|>-----D6
+                      A6-----<|15      3      26|>-----D7
+                      A7-----<|16             25|>-----A15
+                      A8-----<|17             24|>-----A14
+                      A9-----<|18             23|>-----A13
+                     A10-----<|19             22|>-----A12
+                     A11-----<|20             21|>-----VSS
+                               -----------------
 
 
-                              6502 CPU REGISTERS
+                             [6502 CPU REGISTERS]
 ############################## [8-BIT DATA BUS] ###############################
 |    |            |       |            |                                      |
 |    |            |       |            |                                      |
@@ -67,7 +85,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// 6502 PROCESSOR STATUS FLAGS REGISTER:
+// 2.1 | 6502 PROCESSOR STATUS FLAGS REGISTER:
 ///////////////////////////////////////////////////////////////////////////////
 
  7 6 5 4 3 2 1 0  <--- Bit
@@ -120,7 +138,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// CPU MEMORY MAP:
+// 2.2 | CPU MEMORY MAP:
 ///////////////////////////////////////////////////////////////////////////////
 
  $0000           $2000           $4020                                   $FFFF
@@ -153,7 +171,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// 6502 ASSEMBLER:
+// 2.3 | 6502 ASSEMBLER:
 ///////////////////////////////////////////////////////////////////////////////
 
  - The ca65 assembler turns 6502 assembly code into machine code:
@@ -202,8 +220,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
     - .sizeof()
     - and more..
 
+
 ///////////////////////////////////////////////////////////////////////////////
-// 6502 ASSEMBLY CODE:
+// 2.4 | 6502 ASSEMBLY CODE:
 ///////////////////////////////////////////////////////////////////////////////
 
  - Roll-off: When decrementing $00 -> $FF
@@ -233,8 +252,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    left new bits with 0. If the original sign-bit was 1, we fill all the 
    new left bits with 1.
 
+
 ///////////////////////////////////////////////////////////////////////////////
-// 6502 INSTRUCTIONS (OPCODES):
+// 2.5 | 6502 INSTRUCTIONS (OPCODES):
 ///////////////////////////////////////////////////////////////////////////////
 
  - List of 6502 instructions:      
@@ -269,7 +289,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ; Loading sets Zero flag if the loaded number is zero
      ; and Negative flag if the loaded number is negative (the leftmost bit is set)
 
-- Arithmetic instructions (addition, subtract):
+ - Arithmetic instructions (addition, subtract):
      ADC  ; add to the accumulator (with carry)
      SBC  ; subtract from the accumulator (with carry)
 
@@ -439,9 +459,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      NOP  ; no operation
 
 
-###############################################################################
-#                                NES GRAPHICS                                 #
-###############################################################################
+///////////////////////////////////////////////////////////////////////////////
+// #3 | NES GRAPHICS:
+///////////////////////////////////////////////////////////////////////////////
 
                                  [TV SCREEN]
                                256 x 240 PIXELS
@@ -469,7 +489,6 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                      ----------------------------------    <-       BLANK
                     |---------341 PPU CYCLES/PIXELS----------|
                     |----256 VISIBLE SCANLINE PIXELS----|
-
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -511,7 +530,10 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                               $2007:   PPU_DATA
                               -----------------
 
-///////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////
+// 3.1 | PPU REGISTERS:
+//////////////////////////////////////////////////////////////////////////////
 
    $2000 : PPU_CTRL   :  7 6 5 4 3 2 1 0
                          | | | | | |  \ \ 
@@ -580,8 +602,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
  - When storing a byte in PPU_DATA the PPU_ADDR is automatically incremented.
    According to PPU_CTRL bit 2, either increment by 1 or increment by 32.
 
+
 //////////////////////////////////////////////////////////////////////////////
-// PPU MEMORY MAP:
+// 3.2 | PPU MEMORY MAP:
 //////////////////////////////////////////////////////////////////////////////
 
            $0000 ------- #-----------------# --------
@@ -610,9 +633,10 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                          |-----------------| --------
                          | PALETTE SPRITES | 16 bytes
                          #-----------------#
-              
+
+
 ///////////////////////////////////////////////////////////////////////////////
-// PATTERN TABLES AND NAMETABLES:
+// 3.3 | PATTERN TABLES AND NAMETABLES:
 ///////////////////////////////////////////////////////////////////////////////
 
            [8x8  TILE]
@@ -809,7 +833,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
                             ------------------------
 
           Changing the text in the status bar:
-          We'll create a buffer at memory address $7000 to change background tiles
+          We'll create a buffer at memory address $0700 to change background tiles
           in the nametable. Format of entries in buffer:
        
           / A single byte
@@ -820,8 +844,9 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
          |  PPU address (hi-byte/lo-byte)
         Length (how many tiles to change)
 
+
 //////////////////////////////////////////////////////////////////////////////
-// SPRITES / PPU OAM:
+// 3.4 | SPRITES AND PPU OAM:
 //////////////////////////////////////////////////////////////////////////////
 
  - The NES supports a maximum of 8 different sprites per scanline.
@@ -858,40 +883,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// CONTROLLER:
-///////////////////////////////////////////////////////////////////////////////
-            
-      -----------------------       READ/WRITE      
-     |                       |  <--- [LATCH]--->  7 6 5 4 3 2 1 0      
-     |    |                  |                    | | | | | | |  \ 
-     |  -   -                |                    | | | | | |  \  RIGHT
-     |    |    == ==   O O   |                    | | | | |  \  LEFT
-     |        /  /      \ \  |                    | | | |  \  DOWN
-        SELECT  START    B A                      | | |  \  UP 
-                                                  | |  \  START
-                                                  |  \  SELECT
-  - $4016 is the address for the 1st controller    \  B
-  - $4017 is the address for the 2nd controller     A
-
-  - Reading input from controller 1 and storing the values in the Buttons variable:
-    .proc ReadControllers
-        lda #1                   ; A = 1
-        sta Buttons              ; Buttons = 1
-        sta #$4016               ; Set Latch=1 to begin 'Input'/collection mode
-        lsr                      ; A = 0
-        sta #$4016               ; Set Latch=0 to begin 'Output' mode
-    LoopButtons:
-        lda #$4016               ; This reads a bit from the controller data line and inverts its value,
-                                 ; And also sends a signal to the Clock line to shift the bits
-        lsr                      ; We shift-right to place that 1-bit we just read into the Carry flag
-        rol Buttons              ; Rotate bits left, placing the Carry value into the 1st bit of 'Buttons' in RAM
-        bcc LoopButtons          ; Loop until Carry is set (from that initial 1 we loaded inside Buttons)
-        rts
-    .endproc
-
-
-///////////////////////////////////////////////////////////////////////////////
-// AUDIO PROCESSING UNIT (APU)
+// #4 | AUDIO PROCESSING UNIT (APU)
 ///////////////////////////////////////////////////////////////////////////////
 
  - The APU is a sound generator packaged inside the ricoh 2A03 chip.
@@ -1059,7 +1051,40 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// OTHER NOTES:
+// #5 | CONTROLLER INPUT:
+///////////////////////////////////////////////////////////////////////////////
+            
+      -----------------------       READ/WRITE      
+     |                       |  <--- [LATCH]--->  7 6 5 4 3 2 1 0      
+     |    |                  |                    | | | | | | |  \ 
+     |  -   -                |                    | | | | | |  \  RIGHT
+     |    |    == ==   O O   |                    | | | | |  \  LEFT
+     |        /  /      \ \  |                    | | | |  \  DOWN
+        SELECT  START    B A                      | | |  \  UP 
+                                                  | |  \  START
+                                                  |  \  SELECT
+  - $4016 is the address for the 1st controller    \  B
+  - $4017 is the address for the 2nd controller     A
+
+  - Reading input from controller 1 and storing the values in the Buttons variable:
+    .proc ReadControllers
+        lda #1                   ; A = 1
+        sta Buttons              ; Buttons = 1
+        sta #$4016               ; Set Latch=1 to begin 'Input'/collection mode
+        lsr                      ; A = 0
+        sta #$4016               ; Set Latch=0 to begin 'Output' mode
+    LoopButtons:
+        lda #$4016               ; This reads a bit from the controller data line and inverts its value,
+                                 ; And also sends a signal to the Clock line to shift the bits
+        lsr                      ; We shift-right to place that 1-bit we just read into the Carry flag
+        rol Buttons              ; Rotate bits left, placing the Carry value into the 1st bit of 'Buttons' in RAM
+        bcc LoopButtons          ; Loop until Carry is set (from that initial 1 we loaded inside Buttons)
+        rts
+    .endproc
+
+
+///////////////////////////////////////////////////////////////////////////////
+// #6 | OTHER NOTES:
 ///////////////////////////////////////////////////////////////////////////////
 
  - Acceleration -> Velocity -> Position:
@@ -1090,7 +1115,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
     We'll make a .proc for each of the states, not to use them as subroutes
     but to have different scopes for the different states.
 
-// COLLISION DETECTION:
+ // COLLISION DETECTION:
 
  - On modern hardware collision check might be implemented very simple with
    AABB (Axis-Align Bounding Box) collision checking.
@@ -1132,7 +1157,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
       set PPU_ADDR back to the address of the upper-left of the nametable to 
       prevent corruption of the picture frame.
 
-// PSEUDO RANDOM NUMBER GENERATION:
+ // PSEUDO RANDOM NUMBER GENERATION:
 
  - (Pseudo) Random numbers using Linear-Feedback Shift Register (LFSR).
    A very common method for generating pseudo random numbers suitable for
@@ -1222,11 +1247,11 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
    .endproc
 
  - To make the PRNG (Pseudo Random Number Generator) less predictable we can
-   add a timer at the start of the game and count how long it takes for the
+    add a timer at the start of the game and count how long it takes for the
    player to press the start button. We can use the result of the timer
    as the initial seed instead of hardcoding a value.
 
-// COMPRESSION:
+ // COMPRESSION:
 
  - Run-Length Encoding (RLE) Compression:
    A way to compress data if we have a lot of repeating values is by
@@ -1272,13 +1297,21 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
 
   - IMPORTANT: Encoding and compression are at the core of any NES game!
 
+
 ///////////////////////////////////////////////////////////////////////////////
-// LINKS / RESOURCES:
+// #7 | LINKS AND RESOURCES:
 ///////////////////////////////////////////////////////////////////////////////
 
- - Nathan Altice, I Am Error
-     A very good book that talks about working around
-     the limitations of the NES platform.
+ - NESdev Wiki:
+     - iNES header:             https://www.nesdev.org/wiki/INES
+     - Init code:               https://www.nesdev.org/wiki/Init_code
+     - PPU registers:           https://www.nesdev.org/wiki/PPU_registers
+     - Random number generator: https://www.nesdev.org/wiki/Random_number_generator
+     - Tile compression:        https://www.nesdev.org/wiki/Tile_compression
+
+ - NROM template: https://github.com/pinobatch/nrom-template
+
+ - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
 
  - Tile Editors:
      - NEXXT (Windows): https://frankengraphics.itch.io/nexxt
@@ -1288,18 +1321,15 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      ($ yay -S famistudio)
 
  - Christopher Parker's NES Audio Tutorial: https://nerdy-nights.nes.science/#audio_tutorial
-     How to write your own audio engine from scratch.
-
- - NESdev Wiki:
-     - iNES header:             https://www.nesdev.org/wiki/INES
-     - Init code:               https://www.nesdev.org/wiki/Init_code
-     - PPU registers:           https://www.nesdev.org/wiki/PPU_registers
-     - Random number generator: https://www.nesdev.org/wiki/Random_number_generator
-     - Tile compression:        https://www.nesdev.org/wiki/Tile_compression
-
- - NES color palette: https://en.wikipedia.org/wiki/List_of_video_game_console_palettes#Nintendo_Entertainment_System
-
- - NROM template: https://github.com/pinobatch/nrom-template
+     How to write your own audio engine from scratch
+     
+ - Shiru's Stuff: https://shiru.untergrund.net/
+    - NESLib:                     https://shiru.untergrund.net/files/src/cc65_nes_examples.zip
+    - Programming NES games in C: https://shiru.untergrund.net/articles/programming_nes_games_in_c.htm
+ 
+ - Nathan Altice, I Am Error
+     A very good book that talks about working around
+     the limitations of the NES platform.
 
  - Morphcat Games:
      - How we fit an NES game into 40 Kilobytes (Micro Mages): https://youtu.be/ZWQ0591PAxM
@@ -1310,4 +1340,7 @@ T    |                   |  |    (ARITHMETIC-LOGIC UNIT)  (PROCESSOR FLAGS)   Y
      - NES Architecture Explained:     https://youtu.be/PwZEBE66an0
      - NES Graphics Explained:         https://youtu.be/7Co_8dC2zb8
      - The Code That Makes Mario Move: https://youtu.be/ZuKIUjw_tNU
+
+ - Source code examples (for learning):
+    - Nova the Squirrel: https://github.com/NovaSquirrel/NovaTheSquirrel
 

@@ -15,7 +15,8 @@
 ;; Struct to hold the data for one actor
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .struct Actor
-    Type .byte
-    XPos .byte
-    YPos .byte
+    Type   .byte
+    XPos   .byte
+    YPos   .byte
+    Screen .byte
 .endstruct

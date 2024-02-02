@@ -2,7 +2,19 @@
 // VERSION HISTORY:
 ///////////////////////////////////////////////////////////////////////////////
 
- - 00010010:
+ - 00010100:
+    - Course section 21: Small Polishing Details
+        - Fixed button press/release bug
+        - Changed status bar buffer address from $7000 -> $0700
+        - Implemented better sprite clipping for left/right side of the screen.
+        - Fixed bug with explosion sfx
+        (Completed section)
+    - Course section 22: NES C Development
+        (Completed section)
+    - Course section 23: Conclusion & Next Steps
+        (Completed section)
+
+ - 00010011:
     - Course section 20: NES Audio
         - Implemented the FamiStudio audio engine into the project.
         - Added separate background music for titlescreen and game.

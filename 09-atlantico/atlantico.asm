@@ -7,6 +7,8 @@
 
 .segment "ZEROPAGE"
 
+ActorsArray:    .res MAX_ACTORS * .sizeof(Actor)
+
 MenuItem:       .res 1       ; Keep track of the menu item that is selected
 
 GameState:      .res 1       ; Keep track of game state
@@ -14,11 +16,8 @@ GameState:      .res 1       ; Keep track of game state
 Buttons:        .res 1       ; Pressed buttons (A|B|Select|Start|Up|Dwn|Lft|Rgt)
 PrevButtons:    .res 1       ; Previously pressed buttons
 
-XPos:           .res 1       ; Player X 16-bit position (8.8 fixed-point): hi+lo/256px
-YPos:           .res 1       ; Player Y 16-bit position (8.8 fixed-point): hi+lo/256px
-
-XVel:           .res 1       ; Player X (signed) velocity (in pixels per 256 frames)
-YVel:           .res 1       ; Player Y (signed) velocity (in pixels per 256 frames)
+XPos:           .res 1       ; Player X position
+YPos:           .res 1       ; Player Y position
 
 PrevSubmarine:  .res 1       ; Time in seconds since last time a submarine was spawned
 PrevAirplane:   .res 1       ; Time in seconds since last time an airplane was spawned
@@ -38,7 +37,6 @@ Column:         .res 1       ; Stores the column (of tiles) we are in the level
 NewColAddr:     .res 2       ; The destination address of the new column in PPU
 SourceAddr:     .res 2       ; The source address in ROM of the new column tiles
 
-ActorsArray:    .res MAX_ACTORS * .sizeof(Actor)
 ParamType:      .res 1
 ParamXPos:      .res 1
 ParamYPos:      .res 1
@@ -49,6 +47,7 @@ ParamRectX1:    .res 1
 ParamRectX2:    .res 1
 ParamRectY1:    .res 1
 ParamRectY2:    .res 1
+ParamScreen:    .res 1
 
 PrevOAMCount:   .res 1       ; Store the previous number of bytes that were sent to the OAM
 
@@ -129,7 +128,7 @@ FAMISTUDIO_DPCM_OFF           = $E000
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Draw the score in the nametable/background using buffering
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Buffer format starting at memory address $7000:
+;; Buffer format starting at memory address $0700:
 ;;
 ;; 03 20 52 00 00 02 01 20  78 00 00
 ;;  | \___/ \______/  | \___/   |  |
@@ -143,7 +142,7 @@ FAMISTUDIO_DPCM_OFF           = $E000
 ;;  Length=3
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .proc DrawScore
-    lda #$70
+    lda #$07
     sta BufPtr+1
     lda #$00
     sta BufPtr+0
@@ -433,6 +432,8 @@ LoopButtons:
     sta ActorsArray+Actor::XPos,x
     lda ParamYPos                      ; Fetch parameter "actor position Y" from RAM
     sta ActorsArray+Actor::YPos,x
+    lda #0
+    sta ActorsArray+Actor::Screen,x
 EndRoutine:
     rts
 .endproc
@@ -450,7 +451,7 @@ EndRoutine:
     bne :+
       lda #ActorType::SUBMARINE
       sta ParamType                    ; Load parameter for the actor type
-      lda #223
+      lda #255
       sta ParamXPos                    ; Load the parameter for actor position X
       jsr GetRandomNumber
       lsr
@@ -474,7 +475,7 @@ EndRoutine:
     bne :+
       lda #ActorType::AIRPLANE
       sta ParamType                    ; Load parameter for the actor type
-      lda #235
+      lda #255
       sta ParamXPos                    ; Load the parameter for actor position X
       jsr GetRandomNumber
       lsr
@@ -604,10 +605,13 @@ FinishCollisionCheck:
           
           jsr IncrementScore
           jsr DrawScore
-
+            
+          PUSH_REGS
           lda #1
           ldx #FAMISTUDIO_SFX_CH1
           jsr famistudio_sfx_play ; Play missile launch sound effect
+          PULL_REGS
+
 
         NoCollisionFound:
 
@@ -618,11 +622,20 @@ FinishCollisionCheck:
       bne :+
         lda ActorsArray+Actor::XPos,x
         sec
-        sbc #1                         ; Decrement X position of submarine of 1
+        sbc #1                          ; Decrement X position of submarine of 1
         sta ActorsArray+Actor::XPos,x
-        bcs SkipSubmarine
-          lda #ActorType::NULL
-          sta ActorsArray+Actor::Type,x
+
+        lda ActorsArray+Actor::Screen,x
+        sbc #0
+        sta ActorsArray+Actor::Screen,x ; Subtracting from the hi-byte of the XPos (which is our Screen)
+
+        cmp #$FF
+        bne SkipSubmarine               ; Only remove actor if it's in Screen -1 (left screen)
+          lda ActorsArray+Actor::XPos,x
+          cmp #$E0
+          bne SkipSubmarine
+            lda #ActorType::NULL
+            sta ActorsArray+Actor::Type,x
         SkipSubmarine:
         jmp NextActor
       :
@@ -633,9 +646,18 @@ FinishCollisionCheck:
         sec
         sbc #1                         ; Decrement X position of submarine of 1
         sta ActorsArray+Actor::XPos,x
-        bcs SkipAirplane
-          lda #ActorType::NULL
-          sta ActorsArray+Actor::Type,x
+
+        lda ActorsArray+Actor::Screen,x
+        sbc #0
+        sta ActorsArray+Actor::Screen,x ; Subtracting from the hi-byte of the XPos (which is our Screen)
+
+        cmp #$FF
+        bne SkipAirplane               ; Only remove actor if it's in Screen -1 (left screen)
+          lda ActorsArray+Actor::XPos,x
+          cmp #$E0
+          bne SkipAirplane
+            lda #ActorType::NULL
+            sta ActorsArray+Actor::Type,x
         SkipAirplane:
         jmp NextActor
       :
@@ -646,7 +668,9 @@ FinishCollisionCheck:
         adc #.sizeof(Actor)
         tax
         cmp #MAX_ACTORS * .sizeof(Actor)
-        bne ActorsLoop
+        beq :+ 
+          jmp ActorsLoop
+        :
     
     rts
 .endproc
@@ -665,6 +689,9 @@ FinishCollisionCheck:
     ldy #0                             ; Count how many tiles we are sending
     ldx #0                             ; Counts how many actors we are looping
     ActorsLoop:
+      lda ActorsArray+Actor::Screen,x
+      sta ParamScreen
+
       lda ActorsArray+Actor::Type,x
       
       cmp #ActorType::SPRITE0
@@ -783,7 +810,7 @@ FinishCollisionCheck:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routine to loop "NumTiles" times, sending bytes to the OAM-RAM
-;; Params = ParamXPos, ParamyPos, ParamTileNum, ParamAttribs, ParamNumTiles
+;; Params = ParamXPos, ParamYPos, ParamTileNum, ParamAttribs, ParamNumTiles, ParamScreen
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 .proc DrawSprite
     txa
@@ -791,32 +818,51 @@ FinishCollisionCheck:
 
     ldx #0
     TileLoop:
-      lda ParamYPos          ; Send Y position to the OAM 
-      sta (SprPtr),y
-      iny
 
-      lda ParamTileNum       ; Send the Tile # to the OAM
-      sta (SprPtr),y
-      inc ParamTileNum       ; ParamTileNum++
-      iny
+      lda ParamScreen
+      bne SkipTile
 
-      lda ParamAttribs       ; Send the attributes to the OAM
-      sta (SprPtr),y
-      iny
+        lda ParamYPos          ; Send Y position to the OAM 
+        sta (SprPtr),y
+        iny
 
-      lda ParamXPos          ; Send X position to the OAM 
-      sta (SprPtr),y
+        lda ParamTileNum       ; Send the Tile # to the OAM
+        sta (SprPtr),y
+        inc ParamTileNum       ; ParamTileNum++
+        iny
+
+        lda ParamAttribs       ; Send the attributes to the OAM
+        sta (SprPtr),y
+        iny
+
+        lda ParamXPos          ; Send X position to the OAM 
+        sta (SprPtr),y
+        clc
+        adc #8
+        sta ParamXPos          ; ParamXPos += 8
+        
+        lda ParamScreen
+        adc #0
+        sta ParamScreen        ; Incrementing hi-byte of the XPos (using the carry of the previous addition)
+        iny
+
+        jmp NextTile
       
-      clc
-      adc #8
-      sta ParamXPos          ; ParamXPos += 8
+      SkipTile:
+        lda ParamXPos
+        clc 
+        adc #8
+        sta ParamXPos          ; ParamXPos += 8
+        lda ParamScreen
+        adc #0
+        sta ParamScreen        ; Increment hi-byte of the XPos (using the carry of the previous addition)
+        inc ParamTileNum       ; ParamTileNum++
 
-      iny
-      
-      inx                    ; X++
-      cpx ParamNumTiles      ; Loop until X == NumTiles
-      bne TileLoop
-
+      NextTile:
+        inx                    ; X++
+        cpx ParamNumTiles      ; Loop until X == NumTiles
+        bne TileLoop
+    
     pla
     tax                      ; Restore the value of the X register
 
@@ -981,7 +1027,8 @@ TitleScreenLoop:
     lda Buttons              ; Load buttons byte
     and #BUTTON_UP           ; Mask UP button bit
     beq :+                   ; If the UP button is pressed the UP bit should be 1
-      cmp PrevButtons
+      lda PrevButtons
+      cmp Buttons
       beq :+                 ; Only perform button action once per press/release
         lda MenuItem
         beq :+               ; Only decrement MenuItem if over 0
@@ -997,7 +1044,8 @@ TitleScreenLoop:
     lda Buttons
     and #BUTTON_DOWN
     beq :+
-      cmp PrevButtons
+      lda PrevButtons
+      cmp Buttons
       beq :+
         lda MenuItem
         cmp #2
@@ -1068,25 +1116,25 @@ AudioEngineInit:
 Main:
     jsr LoadPalette          ; Call LoadPalette subroutine to load 32 colors into our palette
 
-AddSprite0:
-    lda #ActorType::SPRITE0
-    sta ParamType
-    lda #0
-    sta ParamXPos
-    lda #27
-    sta ParamYPos
-    lda #0
-    jsr AddNewActor
-
-AddPlayer:
-    lda #ActorType::PLAYER
-    sta ParamType
-    lda XPos
-    sta ParamXPos
-    lda YPos
-    sta ParamYPos
-    lda #0
-    jsr AddNewActor
+ AddSprite0:
+     lda #ActorType::SPRITE0
+     sta ParamType
+     lda #0
+     sta ParamXPos
+     lda #27
+     sta ParamYPos
+     lda #0
+     jsr AddNewActor
+ 
+ AddPlayer:
+     lda #ActorType::PLAYER
+     sta ParamType
+     lda XPos
+     sta ParamXPos
+     lda YPos
+     sta ParamYPos
+     lda #0
+     jsr AddNewActor
 
 InitBackgroundTiles:
     lda #1
@@ -1161,9 +1209,8 @@ CheckAButton:
     lda Buttons
     and #BUTTON_A
     beq :+
-      lda Buttons
-      and #BUTTON_A
-      cmp PrevButtons
+      lda PrevButtons
+      cmp Buttons
       beq:+
         lda #ActorType::MISSILE
         sta ParamType
@@ -1204,11 +1251,11 @@ OAMStartDMACopy:             ; DMA copy of OAM data from RAM to PPU
     lda #$02                 ; Every frame, we copy spite data starting at $02**
     sta PPU_OAM_DMA          ; The OAM-DMA copy starts when we write to $4014
 
-BackgroundCopy:              ; Here is where we copy/draw the background buffer from $7000 to the PPU
-    lda #$70
+BackgroundCopy:              ; Here is where we copy/draw the background buffer from $0700 to the PPU
+    lda #$07
     sta BufPtr+1             
     lda #$00
-    sta BufPtr+0             ; Set BufPtr pointer to start at address $7000
+    sta BufPtr+0             ; Set BufPtr pointer to start at address $0700
 
     ldy #$00
   BufferLoop:
