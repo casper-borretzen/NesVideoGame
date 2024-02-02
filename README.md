@@ -8,7 +8,3 @@ A NES video game made using 6502 assembly language by following the course [NES 
 ![screenshot](screenshots/screenshot_00.png?raw=true "screenshot")
 
 ![screenshot](screenshots/screenshot_01.png?raw=true "screenshot")
-
-![screenshot](screenshots/screenshot_02.png?raw=true "screenshot")
-
-![screenshot](screenshots/screenshot_03.png?raw=true "screenshot")
