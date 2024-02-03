@@ -5,6 +5,3 @@ A NES video game made using 6502 assembly language by following the course [NES 
 > [!TIP]
 > See [NOTES.txt](NOTES.txt) for more info.
 
-![screenshot](screenshots/screenshot_00.png?raw=true "screenshot")
-
-![screenshot](screenshots/screenshot_01.png?raw=true "screenshot")
