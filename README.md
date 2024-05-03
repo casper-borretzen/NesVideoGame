@@ -5,3 +5,5 @@ A NES video game made using 6502 assembly language by following the course [NES 
 > [!TIP]
 > See [NOTES.txt](NOTES.txt) for more info.
 
+> [!NOTE]
+> [Course certificate](https://courses.pikuma.com/certificates/xzsbxknc74)
